@@ -6,6 +6,7 @@ import { ReclaimProofRequest } from '@reclaimprotocol/js-sdk';
 import QRCode from 'react-qr-code';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { v4 as uuidv4 } from 'uuid';
 
 interface ProofData {
   claimData: {
@@ -25,8 +26,8 @@ export default function Home() {
   const [requestUrl, setRequestUrl] = useState<string | null>(null);
   const reclaimProofRequestRef = useRef<any>(null);
 
-  const pollForProof = async (
-    reclaimProofRequest: any,
+  const pollForProofFromBackend = async (
+    sessionId: string,
     setProofData: React.Dispatch<React.SetStateAction<ProofData | null>>,
     setError: React.Dispatch<React.SetStateAction<string | null>>,
     interval = 2000,
@@ -35,9 +36,10 @@ export default function Home() {
     let attempts = 0;
     const poll = async () => {
       try {
-        const proofs = await reclaimProofRequest.getProofs();
-        if (proofs && proofs.length > 0) {
-          setProofData(proofs[0]);
+        const res = await fetch(`/api/reclaim-callback?sessionId=${sessionId}`);
+        const data = await res.json();
+        if (data.found && data.proof) {
+          setProofData(data.proof);
           setIsVerifying(false);
           return;
         }
@@ -49,7 +51,7 @@ export default function Home() {
           setIsVerifying(false);
         }
       } catch (err) {
-        setError('Failed to fetch proof. Please try again.');
+        setError('Failed to fetch proof from backend. Please try again.');
         setIsVerifying(false);
       }
     };
@@ -62,15 +64,17 @@ export default function Home() {
     setRequestUrl(null);
     setProofData(null);
     try {
-      const reclaimProofRequest = await ReclaimProofRequest.init(
-        process.env.NEXT_PUBLIC_RECLAIM_APP_ID || '',
-        process.env.NEXT_PUBLIC_RECLAIM_APP_SECRET || '',
-        'f9f383fd-32d9-4c54-942f-5e9fda349762'
-      );
+      const sessionId = uuidv4();
+      // 1. Fetch config from backend (sessionId is only for backend proof lookup)
+      const res = await fetch(`/api/generate-config?sessionId=${sessionId}`);
+      const { reclaimProofRequestConfig } = await res.json();
+      // 2. Initialize from config
+      const reclaimProofRequest = await ReclaimProofRequest.fromJsonString(reclaimProofRequestConfig);
       reclaimProofRequestRef.current = reclaimProofRequest;
+      // 3. Trigger flow
       await reclaimProofRequest.triggerReclaimFlow();
-      // Start polling for proof every 2 seconds, up to 1 minute
-      pollForProof(reclaimProofRequest, setProofData, setError, 2000, 30);
+      // 4. Poll backend for proof
+      pollForProofFromBackend(sessionId, setProofData, setError, 2000, 90);
     } catch (err) {
       setError('Failed to initialize verification. Please check your configuration.');
       setIsVerifying(false);

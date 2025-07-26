@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Shield, Lock, Eye, Copy, CheckCircle, AlertCircle } from 'lucide-react';
 import { ReclaimProofRequest } from '@reclaimprotocol/js-sdk';
+import QRCode from 'react-qr-code';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 interface ProofData {
   claimData: {
@@ -19,41 +22,80 @@ export default function Home() {
   const [proofData, setProofData] = useState<ProofData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [requestUrl, setRequestUrl] = useState<string | null>(null);
+  const reclaimProofRequestRef = useRef<any>(null);
+
+  const pollForProof = async (
+    reclaimProofRequest: any,
+    setProofData: React.Dispatch<React.SetStateAction<ProofData | null>>,
+    setError: React.Dispatch<React.SetStateAction<string | null>>,
+    interval = 2000,
+    maxAttempts = 30
+  ) => {
+    let attempts = 0;
+    const poll = async () => {
+      try {
+        const proofs = await reclaimProofRequest.getProofs();
+        if (proofs && proofs.length > 0) {
+          setProofData(proofs[0]);
+          setIsVerifying(false);
+          return;
+        }
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, interval);
+        } else {
+          setError('Proof not found after waiting. Please try again.');
+          setIsVerifying(false);
+        }
+      } catch (err) {
+        setError('Failed to fetch proof. Please try again.');
+        setIsVerifying(false);
+      }
+    };
+    poll();
+  };
 
   const handleGmailVerification = async () => {
     setIsVerifying(true);
     setError(null);
-    
+    setRequestUrl(null);
+    setProofData(null);
     try {
-      // Initialize Reclaim proof request
       const reclaimProofRequest = await ReclaimProofRequest.init(
         process.env.NEXT_PUBLIC_RECLAIM_APP_ID || '',
         process.env.NEXT_PUBLIC_RECLAIM_APP_SECRET || '',
-        'f9f383fd-32d9-4c54-942f-5e9fda349762' // Provider ID for Gmail
+        'f9f383fd-32d9-4c54-942f-5e9fda349762'
       );
-
-      // Generate request URL
-      const requestUrl = await reclaimProofRequest.getRequestUrl();
-
-      // Start session and wait for proof
-      await reclaimProofRequest.startSession({
-        onSuccess: (proofs: any) => {
-          if (proofs && proofs.length > 0) {
-            setProofData(proofs[0]);
-          }
-          setIsVerifying(false);
-        },
-        onError: (error: any) => {
-          setError('Verification failed. Please try again.');
-          setIsVerifying(false);
-        }
-      });
-
-      // Open verification URL in new window
-      window.open(requestUrl, '_blank');
-      
+      reclaimProofRequestRef.current = reclaimProofRequest;
+      await reclaimProofRequest.triggerReclaimFlow();
+      // Start polling for proof every 2 seconds, up to 1 minute
+      pollForProof(reclaimProofRequest, setProofData, setError, 2000, 30);
     } catch (err) {
       setError('Failed to initialize verification. Please check your configuration.');
+      setIsVerifying(false);
+    }
+  };
+
+  const handleManualCheck = async () => {
+    setIsVerifying(true);
+    setError(null);
+    try {
+      const reclaimProofRequest = reclaimProofRequestRef.current;
+      if (!reclaimProofRequest) {
+        setError('Session not found. Please restart verification.');
+        setIsVerifying(false);
+        return;
+      }
+      const proofs = await reclaimProofRequest.getProofs();
+      if (proofs && proofs.length > 0) {
+        setProofData(proofs[0]);
+      } else {
+        setError('Proof not found yet. Please try again after completing verification on your device.');
+      }
+    } catch (err) {
+      setError('Failed to fetch proof. Please try again.');
+    } finally {
       setIsVerifying(false);
     }
   };
@@ -124,28 +166,24 @@ export default function Home() {
           <h2 className="text-2xl font-bold text-privacy-text">
             Verify Your Gmail Account
           </h2>
-          
           <p className="text-privacy-secondary">
-            Click the button below to start the verification process. 
-            You'll be redirected to securely prove your Gmail ownership.
+            Click the button below to start the verification process. You'll be guided through the optimal flow for your device.
           </p>
-
           {error && (
-            <div className="flex items-center space-x-2 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
-              <AlertCircle className="h-5 w-5" />
-              <span>{error}</span>
-            </div>
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
-
-          <button
+          <Button
             onClick={handleGmailVerification}
             disabled={isVerifying}
-            className="privacy-button w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full md:w-auto"
           >
             {isVerifying ? (
               <span className="flex items-center justify-center space-x-2">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                <span>Verifying...</span>
+                <span>Preparing...</span>
               </span>
             ) : (
               <span className="flex items-center justify-center space-x-2">
@@ -153,10 +191,9 @@ export default function Home() {
                 <span>Verify My Gmail</span>
               </span>
             )}
-          </button>
+          </Button>
         </div>
       </div>
-
       {/* Proof Display */}
       {proofData && (
         <div className="privacy-card animate-fade-in">
@@ -167,11 +204,9 @@ export default function Home() {
                 Verification Successful!
               </h3>
             </div>
-            
             <p className="text-privacy-secondary">
-              Your Gmail account has been verified. Here's your zero-knowledge proof:
+              {`Your ${proofData.claimData?.parameters || 'Gmail'} is verified successfully while your data remains only to you.`}
             </p>
-
             <div className="space-y-4">
               <div className="bg-black/30 rounded-lg p-4 border border-white/10">
                 <h4 className="text-sm font-semibold text-privacy-text mb-2">Proof Data:</h4>
@@ -179,11 +214,10 @@ export default function Home() {
                   {JSON.stringify(proofData, null, 2)}
                 </pre>
               </div>
-
               <div className="flex flex-col sm:flex-row gap-3">
-                <button
+                <Button
                   onClick={copyProofToClipboard}
-                  className="privacy-button flex items-center justify-center space-x-2"
+                  className="flex items-center justify-center space-x-2"
                 >
                   {copied ? (
                     <>
@@ -196,20 +230,20 @@ export default function Home() {
                       <span>Copy Proof</span>
                     </>
                   )}
-                </button>
-                
-                <button
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => {
                     const url = `/verify?proof=${encodeURIComponent(JSON.stringify(proofData))}`;
                     window.open(url, '_blank');
                   }}
-                  className="privacy-button bg-privacy-success hover:bg-privacy-success/90"
+                  className="bg-privacy-success hover:bg-privacy-success/90"
                 >
                   <span className="flex items-center justify-center space-x-2">
                     <Eye className="h-4 w-4" />
                     <span>Preview Verification</span>
                   </span>
-                </button>
+                </Button>
               </div>
             </div>
           </div>

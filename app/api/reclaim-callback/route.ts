@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
   if (!sessionId) {
     return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
   }
+  console.log("proofs",proofs)
   const proof = proofs[sessionId];
   if (!proof) {
     return NextResponse.json({ found: false });

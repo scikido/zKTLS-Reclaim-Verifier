@@ -77,9 +77,8 @@ export default function Home() {
       await reclaimProofRequest.startSession({
         onSuccess: (proofs) => {
           console.log('Successfully created proof', proofs);
-          //@ts-ignore
-          setProofData(proofs);
-          setIsVerifying(true);
+          pollForProofFromBackend(sessionId, setProofData, setError, 2000, 90);
+          setIsVerifying(false);
           // Handle successful verification - proofs are also sent to your backend callback
         },
         onError: (error) => {
@@ -89,7 +88,7 @@ export default function Home() {
         },
       });
       // 4. Poll backend for proof
-      pollForProofFromBackend(sessionId, setProofData, setError, 2000, 90);
+      
     } catch (err) {
       setError('Failed to initialize verification. Please check your configuration.');
       setIsVerifying(false);

@@ -4,15 +4,18 @@ import { NextRequest, NextResponse } from 'next/server';
 const proofs: Record<string, any> = {};
 
 export async function POST(req: NextRequest) {
+  const {searchParams}= new URL(req.url);
+
   const rawbody = await req.text();
   const decoded =  decodeURIComponent(rawbody)
   const body = await JSON.parse(decoded);
   // Assume body contains a sessionId or unique identifier
   console.log("body",body);
-  if (!body.identifier) {
+  const sessionId = searchParams.get('sessionId')
+  if (!sessionId) {
     return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
   }
-  proofs[body.identifier] = body;
+  proofs[sessionId] = body;
   return NextResponse.json({ status: 'ok' });
 }
 

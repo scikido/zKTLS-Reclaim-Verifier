@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   }
   // const host = req.headers.get('host');
   // const proto = req.headers.get('x-forwarded-proto') || 'http';
-  const callbackUrl = `${origin}/api/reclaim-callback`;
+  const callbackUrl = `${origin}/api/reclaim-callback?sessionId=${sessionId}`;
   const appId = process.env.NEXT_PUBLIC_RECLAIM_APP_ID;
   const appSecret = process.env.NEXT_PUBLIC_RECLAIM_APP_SECRET;
   if (!appId || !appSecret) {

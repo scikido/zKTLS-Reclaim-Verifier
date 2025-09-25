@@ -4,12 +4,18 @@ import { NextRequest, NextResponse } from 'next/server';
 const proofs: Record<string, any> = {};
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const {searchParams}= new URL(req.url);
+
+  const rawbody = await req.text();
+  const decoded =  decodeURIComponent(rawbody)
+  const body = await JSON.parse(decoded);
   // Assume body contains a sessionId or unique identifier
-  if (!body.sessionId) {
+  console.log("body",body);
+  const sessionId = searchParams.get('sessionId')
+  if (!sessionId) {
     return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
   }
-  proofs[body.sessionId] = body;
+  proofs[sessionId] = body;
   return NextResponse.json({ status: 'ok' });
 }
 
@@ -20,6 +26,7 @@ export async function GET(req: NextRequest) {
   if (!sessionId) {
     return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
   }
+  console.log("proofs",proofs)
   const proof = proofs[sessionId];
   if (!proof) {
     return NextResponse.json({ found: false });

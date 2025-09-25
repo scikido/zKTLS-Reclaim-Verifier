@@ -64,10 +64,10 @@ export default function Home() {
     setRequestUrl(null);
     setProofData(null);
     try {
-      const sessionId = uuidv4();
+      
       // 1. Fetch config from backend (sessionId is only for backend proof lookup)
-      const res = await fetch(`/api/generate-config?sessionId=${sessionId}`);
-      const { reclaimProofRequestConfig } = await res.json();
+      const res = await fetch(`/api/generate-config`);
+      const { reclaimProofRequestConfig , sessionId} = await res.json();
       // 2. Initialize from config
       const reclaimProofRequest = await ReclaimProofRequest.fromJsonString(reclaimProofRequestConfig);
       reclaimProofRequestRef.current = reclaimProofRequest;

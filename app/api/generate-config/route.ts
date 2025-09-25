@@ -1,13 +1,14 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { ReclaimProofRequest } from '@reclaimprotocol/js-sdk';
-
+import { v4 as uuidv4 } from 'uuid';
 export async function GET(req: NextRequest) {
   const { searchParams , origin} = new URL(req.url);
-  const sessionId = searchParams.get('sessionId');
-  if (!sessionId) {
-    return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
-  }
+  const sessionId = uuidv4();
+  // const sessionId = searchParams.get('sessionId');
+  // if (!sessionId) {
+  //   return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
+  // }
   // const host = req.headers.get('host');
   // const proto = req.headers.get('x-forwarded-proto') || 'http';
   const callbackUrl = `${origin}/api/reclaim-callback?sessionId=${sessionId}`;
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
       reclaimProofRequest.setAppCallbackUrl(callbackUrl);
     }
     const config = await reclaimProofRequest.toJsonString();
-    return NextResponse.json({ reclaimProofRequestConfig: config });
+    return NextResponse.json({ reclaimProofRequestConfig: config , sessionId});
   } catch (err: any) {
     // Print error and stack trace
     console.error('ReclaimProofRequest.init error:', err);

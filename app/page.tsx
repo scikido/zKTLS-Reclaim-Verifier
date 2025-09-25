@@ -73,6 +73,21 @@ export default function Home() {
       reclaimProofRequestRef.current = reclaimProofRequest;
       // 3. Trigger flow
       await reclaimProofRequest.triggerReclaimFlow();
+
+      await reclaimProofRequest.startSession({
+        onSuccess: (proofs) => {
+          console.log('Successfully created proof', proofs);
+          //@ts-ignore
+          setProofData(proofs);
+          setIsVerifying(true);
+          // Handle successful verification - proofs are also sent to your backend callback
+        },
+        onError: (error) => {
+          console.error('Verification failed', error);
+          setIsVerifying(false);
+          // Handle verification failure
+        },
+      });
       // 4. Poll backend for proof
       pollForProofFromBackend(sessionId, setProofData, setError, 2000, 90);
     } catch (err) {
@@ -125,14 +140,14 @@ export default function Home() {
             <Shield className="h-16 w-16 text-privacy-accent animate-pulse-glow" />
           </div>
         </div>
-        
+
         <h1 className="text-4xl md:text-6xl font-bold text-privacy-text">
           Zero-Knowledge
           <span className="block text-privacy-accent">Identity Verification</span>
         </h1>
-        
+
         <p className="text-xl text-privacy-secondary max-w-2xl mx-auto leading-relaxed">
-          Verify your Gmail account without exposing personal data. 
+          Verify your Gmail account without exposing personal data.
           Generate cryptographic proofs that preserve your privacy while establishing trust.
         </p>
       </div>
@@ -146,7 +161,7 @@ export default function Home() {
             Verify your identity without revealing sensitive information
           </p>
         </div>
-        
+
         <div className="privacy-card text-center space-y-4">
           <Eye className="h-10 w-10 text-privacy-accent mx-auto" />
           <h3 className="text-xl font-semibold">Privacy First</h3>
@@ -154,7 +169,7 @@ export default function Home() {
             Your personal data never leaves your device during verification
           </p>
         </div>
-        
+
         <div className="privacy-card text-center space-y-4">
           <CheckCircle className="h-10 w-10 text-privacy-accent mx-auto" />
           <h3 className="text-xl font-semibold">Cryptographically Secure</h3>

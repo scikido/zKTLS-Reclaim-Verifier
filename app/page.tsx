@@ -223,7 +223,7 @@ export default function Home() {
               </h3>
             </div>
             <p className="text-privacy-secondary">
-              {`Your ${proofData.claimData?.parameters || 'Gmail'} is verified successfully while your data remains only to you.`}
+              {`Your Gmail ${(JSON.parse(proofData.claimData.context))?.extractedParameters.email} is verified successfully while your data remains only to you.`}
             </p>
             <div className="space-y-4">
               <div className="bg-black/30 rounded-lg p-4 border border-white/10">

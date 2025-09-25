@@ -8,9 +8,9 @@ export async function GET(req: NextRequest) {
   if (!sessionId) {
     return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
   }
-  const host = req.headers.get('host');
-  const proto = req.headers.get('x-forwarded-proto') || 'http';
-  const callbackUrl = `${proto}://${origin}/api/reclaim-callback`;
+  // const host = req.headers.get('host');
+  // const proto = req.headers.get('x-forwarded-proto') || 'http';
+  const callbackUrl = `${origin}/api/reclaim-callback`;
   const appId = process.env.NEXT_PUBLIC_RECLAIM_APP_ID;
   const appSecret = process.env.NEXT_PUBLIC_RECLAIM_APP_SECRET;
   if (!appId || !appSecret) {

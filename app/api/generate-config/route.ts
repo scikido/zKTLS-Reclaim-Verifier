@@ -3,14 +3,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ReclaimProofRequest } from '@reclaimprotocol/js-sdk';
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
+  const { searchParams , origin} = new URL(req.url);
   const sessionId = searchParams.get('sessionId');
   if (!sessionId) {
     return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
   }
   const host = req.headers.get('host');
   const proto = req.headers.get('x-forwarded-proto') || 'http';
-  const callbackUrl = `${proto}://${host}/api/reclaim-callback`;
+  const callbackUrl = `${proto}://${origin}/api/reclaim-callback`;
   const appId = process.env.NEXT_PUBLIC_RECLAIM_APP_ID;
   const appSecret = process.env.NEXT_PUBLIC_RECLAIM_APP_SECRET;
   if (!appId || !appSecret) {

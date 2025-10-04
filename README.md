@@ -4,11 +4,13 @@ A privacy-preserving identity verification web application built with Next.js, T
 
 ## Features
 
-- **Zero-Knowledge Identity Verification**: Verify Gmail accounts without exposing personal data
+- **Multi-Platform Verification**: Verify accounts across Gmail, GitHub, Twitter, LinkedIn, Instagram, Spotify, Amazon, and Uber
+- **Zero-Knowledge Identity Verification**: Verify digital accounts without exposing personal data
 - **Cryptographic Proof Generation**: Generate tamper-proof credentials using ZK proofs
 - **Proof Verification**: Verify the authenticity of shared credentials
 - **Privacy-First Design**: Beautiful dark theme with security-focused UI
 - **Responsive Design**: Works seamlessly across all devices
+- **Provider Management**: Browse and select from multiple supported platforms
 
 ## Getting Started
 
@@ -45,11 +47,20 @@ A privacy-preserving identity verification web application built with Next.js, T
 
 ### Verifying Your Identity
 
-1. Navigate to the home page
-2. Click "Verify My Gmail" 
+1. Navigate to the home page or browse providers at `/providers`
+2. Select any supported platform (Gmail, GitHub, Twitter, LinkedIn, etc.)
 3. Complete the OAuth flow in the popup window
 4. Receive your zero-knowledge proof
 5. Copy or share the proof as needed
+
+### Supported Platforms
+
+- **Email**: Gmail
+- **Social Media**: Twitter/X, LinkedIn, Instagram
+- **Development**: GitHub
+- **Entertainment**: Spotify
+- **E-commerce**: Amazon
+- **Transportation**: Uber
 
 ### Verifying a Proof
 

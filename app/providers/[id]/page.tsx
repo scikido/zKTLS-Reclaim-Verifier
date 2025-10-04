@@ -85,15 +85,45 @@ export default function ProviderPage() {
         if (attempts < maxAttempts && !isCancelledRef.current) {
           setTimeout(poll, interval);
         } else if (!isCancelledRef.current) {
+          console.log('Backend polling timed out, relying on SDK polling');
+        }
+      } catch (err) {
+        console.log('Backend polling failed, relying on SDK polling:', err);
+      }
+    };
+    poll();
+  };
+
+  const pollForProofFromSDK = async (interval = 3000, maxAttempts = 60) => {
+    let attempts = 0;
+    const poll = async () => {
+      if (isCancelledRef.current) return;
+      
+      try {
+        const reclaimProofRequest = reclaimProofRequestRef.current;
+        if (!reclaimProofRequest) return;
+        
+        const proofs = await reclaimProofRequest.getProofs();
+        if (proofs && proofs.length > 0) {
+          setProofData(proofs[0]);
+          setStatus('success');
+          setStatusMessage(`${provider?.name} verification completed successfully!`);
+          return;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts && !isCancelledRef.current) {
+          setTimeout(poll, interval);
+        } else if (!isCancelledRef.current) {
           setError('Verification timed out. Please try again.');
           setStatus('error');
           setStatusMessage('Verification failed due to timeout.');
         }
       } catch (err) {
-        if (!isCancelledRef.current) {
-          setError('Failed to fetch proof from backend. Please try again.');
-          setStatus('error');
-          setStatusMessage('Verification failed due to network error.');
+        // SDK polling failed, continue trying
+        attempts++;
+        if (attempts < maxAttempts && !isCancelledRef.current) {
+          setTimeout(poll, interval);
         }
       }
     };
@@ -134,8 +164,9 @@ export default function ProviderPage() {
         setStatusMessage(`Complete verification in the popup window or mobile device`);
       }
 
-      // Poll for proof
+      // Poll for proof from both backend and direct SDK
       pollForProofFromBackend(sessionId);
+      pollForProofFromSDK();
     } catch (err) {
       setError(`Failed to initialize ${provider.name} verification. Please try again.`);
       setStatus('error');
@@ -156,6 +187,29 @@ export default function ProviderPage() {
 
   const handleRetryVerification = () => {
     handleVerification();
+  };
+
+  const handleManualCheck = async () => {
+    try {
+      const reclaimProofRequest = reclaimProofRequestRef.current;
+      if (!reclaimProofRequest) {
+        setError('Session not found. Please restart verification.');
+        return;
+      }
+      
+      setStatusMessage('Checking for proof manually...');
+      const proofs = await reclaimProofRequest.getProofs();
+      if (proofs && proofs.length > 0) {
+        setProofData(proofs[0]);
+        setStatus('success');
+        setStatusMessage(`${provider?.name} verification completed successfully!`);
+      } else {
+        setStatusMessage('Proof not found yet. Please complete verification and try again.');
+      }
+    } catch (err) {
+      console.error('Manual check failed:', err);
+      setStatusMessage('Manual check failed. Please complete verification and try again.');
+    }
   };
 
   const resetVerification = () => {
@@ -324,6 +378,14 @@ export default function ProviderPage() {
                     >
                       <X className="h-4 w-4 mr-2" />
                       Cancel Verification
+                    </Button>
+                    
+                    <Button
+                      variant="secondary"
+                      onClick={handleManualCheck}
+                      className="w-full"
+                    >
+                      Check Manually
                     </Button>
                   </div>
                 </div>

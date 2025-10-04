@@ -17,9 +17,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid provider' }, { status: 400 });
   }
 
-  const host = req.headers.get('host');
-  const proto = req.headers.get('x-forwarded-proto') || 'http';
-  const callbackUrl = `${proto}://${host}/api/reclaim-callback`;
+  // Use override URL if provided, otherwise construct from request
+  const callbackUrlOverride = process.env.RECLAIM_CALLBACK_URL_OVERRIDE;
+  let callbackUrl: string;
+  
+  if (callbackUrlOverride) {
+    callbackUrl = callbackUrlOverride;
+    console.log('Using callback URL override:', callbackUrl);
+  } else {
+    const host = req.headers.get('host');
+    const proto = req.headers.get('x-forwarded-proto') || 'http';
+    callbackUrl = `${proto}://${host}/api/reclaim-callback`;
+    console.log('Constructed callback URL:', callbackUrl);
+    console.log('Host:', host);
+    console.log('Proto:', proto);
+  }
+  
   const appId = process.env.NEXT_PUBLIC_RECLAIM_APP_ID;
   const appSecret = process.env.NEXT_PUBLIC_RECLAIM_APP_SECRET;
   
@@ -35,8 +48,22 @@ export async function GET(req: NextRequest) {
       provider.providerId
     );
     
+    // Try multiple ways to set the callback URL
     if (typeof reclaimProofRequest.setAppCallbackUrl === 'function') {
       reclaimProofRequest.setAppCallbackUrl(callbackUrl);
+      console.log('Set callback URL using setAppCallbackUrl');
+    }
+    
+    // Also try setting it directly if the property exists
+    if ('callbackUrl' in reclaimProofRequest) {
+      (reclaimProofRequest as any).callbackUrl = callbackUrl;
+      console.log('Set callback URL directly on property');
+    }
+    
+    // Try setting it in the config if possible
+    if (typeof (reclaimProofRequest as any).setRedirectUrl === 'function') {
+      (reclaimProofRequest as any).setRedirectUrl(callbackUrl);
+      console.log('Set callback URL using setRedirectUrl');
     }
     
     const config = await reclaimProofRequest.toJsonString();

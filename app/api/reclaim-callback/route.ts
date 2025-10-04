@@ -4,12 +4,18 @@ import { NextRequest, NextResponse } from 'next/server';
 const proofs: Record<string, any> = {};
 
 export async function POST(req: NextRequest) {
+  console.log('Reclaim callback received');
   const body = await req.json();
+  console.log('Callback body:', JSON.stringify(body, null, 2));
+  
   // Assume body contains a sessionId or unique identifier
   if (!body.sessionId) {
+    console.log('Missing sessionId in callback');
     return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
   }
+  
   proofs[body.sessionId] = body;
+  console.log('Proof stored for session:', body.sessionId);
   return NextResponse.json({ status: 'ok' });
 }
 

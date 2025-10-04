@@ -8,35 +8,17 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   console.log('Callback body:', JSON.stringify(body, null, 2));
   
-  // Extract sessionId from various possible locations
-  let sessionId = body.sessionId || body.session_id || body.id;
+  // Extract sessionId from URL parameters (this is the primary method now)
+  const url = new URL(req.url);
+  let sessionId = url.searchParams.get('sessionId');
   
-  // If no sessionId in body, try to extract from URL parameters first
+  // Fallback: try to get from body if not in URL
   if (!sessionId) {
-    const url = new URL(req.url);
-    sessionId = url.searchParams.get('sessionId');
-    console.log('SessionId from URL params:', sessionId);
+    sessionId = body.sessionId || body.session_id || body.id;
   }
   
-  // If still no sessionId, try to extract from proof data or use a fallback
+  // Final fallback: generate from proof content
   if (!sessionId) {
-    // Look for any identifier in the proof data
-    if (body.claimData && body.claimData.context) {
-      try {
-        const context = JSON.parse(body.claimData.context);
-        sessionId = context.sessionId || context.extractedParameterValues?.sessionId;
-      } catch (e) {
-        // Context is not JSON, use it as sessionId if it looks like one
-        if (body.claimData.context.length > 10) {
-          sessionId = body.claimData.context;
-        }
-      }
-    }
-  }
-  
-  // If we still don't have a sessionId, create one based on proof content
-  if (!sessionId) {
-    // Use a hash of the proof content as sessionId
     const proofString = JSON.stringify(body);
     sessionId = 'proof_' + Buffer.from(proofString).toString('base64').slice(0, 16);
     console.log('Generated sessionId from proof content:', sessionId);

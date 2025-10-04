@@ -7,7 +7,6 @@ import QRCode from 'react-qr-code';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { v4 as uuidv4 } from 'uuid';
 import { providers, Provider, getProvidersByCategory } from '@/lib/providers';
 import ProviderStats from '@/components/ProviderStats';
 
@@ -113,9 +112,8 @@ export default function Home() {
     setRequestUrl(null);
     
     try {
-      const sessionId = uuidv4();
-      const res = await fetch(`/api/generate-config?sessionId=${sessionId}&providerId=${provider.id}`);
-      const { reclaimProofRequestConfig } = await res.json();
+      const res = await fetch(`/api/generate-config?providerId=${provider.id}`);
+      const { reclaimProofRequestConfig, sessionId } = await res.json();
       
       const reclaimProofRequest = await ReclaimProofRequest.fromJsonString(reclaimProofRequestConfig);
       reclaimProofRequestRef.current = reclaimProofRequest;

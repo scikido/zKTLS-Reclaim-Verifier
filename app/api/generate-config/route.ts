@@ -2,22 +2,19 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from 'next/server';
 import { ReclaimProofRequest } from '@reclaimprotocol/js-sdk';
 import { getProviderById } from '@/lib/providers';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const sessionId = searchParams.get('sessionId');
+  const { searchParams, origin } = new URL(req.url);
+  const sessionId = uuidv4();
   const providerId = searchParams.get('providerId') || 'gmail';
-  
-  if (!sessionId) {
-    return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
-  }
 
   const provider = getProviderById(providerId);
   if (!provider) {
     return NextResponse.json({ error: 'Invalid provider' }, { status: 400 });
   }
 
-  // Use override URL if provided, otherwise construct from request
+  // Use override URL if provided, otherwise construct from request origin
   const callbackUrlOverride = process.env.RECLAIM_CALLBACK_URL_OVERRIDE;
   let callbackUrl: string;
   
@@ -25,12 +22,9 @@ export async function GET(req: NextRequest) {
     callbackUrl = `${callbackUrlOverride}?sessionId=${sessionId}`;
     console.log('Using callback URL override with sessionId:', callbackUrl);
   } else {
-    const host = req.headers.get('host');
-    const proto = req.headers.get('x-forwarded-proto') || 'http';
-    callbackUrl = `${proto}://${host}/api/reclaim-callback?sessionId=${sessionId}`;
+    callbackUrl = `${origin}/api/reclaim-callback?sessionId=${sessionId}`;
     console.log('Constructed callback URL with sessionId:', callbackUrl);
-    console.log('Host:', host);
-    console.log('Proto:', proto);
+    console.log('Origin:', origin);
   }
   
   const appId = process.env.NEXT_PUBLIC_RECLAIM_APP_ID;
@@ -66,9 +60,10 @@ export async function GET(req: NextRequest) {
       console.log('Set callback URL using setRedirectUrl');
     }
     
-    const config = await reclaimProofRequest.toJsonString();
+    const config = reclaimProofRequest.toJsonString();
     return NextResponse.json({ 
       reclaimProofRequestConfig: config,
+      sessionId,
       provider: provider.name 
     });
   } catch (err: any) {

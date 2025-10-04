@@ -2,8 +2,9 @@
 
 import { useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Shield, Copy, CheckCircle, AlertCircle, Eye, ArrowLeft } from 'lucide-react';
+import { Shield, Copy, CheckCircle, AlertCircle, Eye, ArrowLeft, X, QrCode } from 'lucide-react';
 import { ReclaimProofRequest } from '@reclaimprotocol/js-sdk';
+import QRCode from 'react-qr-code';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -21,16 +22,21 @@ interface ProofData {
   witnesses: any[];
 }
 
+type VerificationStatus = 'idle' | 'generating' | 'waiting' | 'success' | 'error' | 'cancelled';
+
 export default function ProviderPage() {
   const params = useParams();
   const providerId = params.id as string;
   const provider = getProviderById(providerId);
 
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [status, setStatus] = useState<VerificationStatus>('idle');
   const [proofData, setProofData] = useState<ProofData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [requestUrl, setRequestUrl] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string>('');
   const reclaimProofRequestRef = useRef<any>(null);
+  const isCancelledRef = useRef(false);
 
   if (!provider) {
     return (
@@ -59,55 +65,107 @@ export default function ProviderPage() {
 
   const pollForProofFromBackend = async (
     sessionId: string,
-    setProofData: React.Dispatch<React.SetStateAction<ProofData | null>>,
-    setError: React.Dispatch<React.SetStateAction<string | null>>,
     interval = 2000,
-    maxAttempts = 30
+    maxAttempts = 90
   ) => {
     let attempts = 0;
     const poll = async () => {
+      if (isCancelledRef.current) return;
+
       try {
         const res = await fetch(`/api/reclaim-callback?sessionId=${sessionId}`);
         const data = await res.json();
         if (data.found && data.proof) {
           setProofData(data.proof);
-          setIsVerifying(false);
+          setStatus('success');
+          setStatusMessage(`${provider?.name} verification completed successfully!`);
           return;
         }
         attempts++;
-        if (attempts < maxAttempts) {
+        if (attempts < maxAttempts && !isCancelledRef.current) {
           setTimeout(poll, interval);
-        } else {
-          setError('Proof not found after waiting. Please try again.');
-          setIsVerifying(false);
+        } else if (!isCancelledRef.current) {
+          setError('Verification timed out. Please try again.');
+          setStatus('error');
+          setStatusMessage('Verification failed due to timeout.');
         }
       } catch (err) {
-        setError('Failed to fetch proof from backend. Please try again.');
-        setIsVerifying(false);
+        if (!isCancelledRef.current) {
+          setError('Failed to fetch proof from backend. Please try again.');
+          setStatus('error');
+          setStatusMessage('Verification failed due to network error.');
+        }
       }
     };
     poll();
   };
 
   const handleVerification = async () => {
-    setIsVerifying(true);
+    if (!provider) return;
+
+    setStatus('generating');
+    isCancelledRef.current = false;
     setError(null);
     setProofData(null);
-    
+    setStatusMessage(`Initializing ${provider.name} verification...`);
+    setRequestUrl(null);
+
     try {
       const sessionId = uuidv4();
       const res = await fetch(`/api/generate-config?sessionId=${sessionId}&providerId=${provider.id}`);
       const { reclaimProofRequestConfig } = await res.json();
-      
+
       const reclaimProofRequest = await ReclaimProofRequest.fromJsonString(reclaimProofRequestConfig);
       reclaimProofRequestRef.current = reclaimProofRequest;
-      
+
+      // Start the verification flow and get URL
+      setStatus('waiting');
+      setStatusMessage(`Starting ${provider.name} verification flow...`);
+
       await reclaimProofRequest.triggerReclaimFlow();
-      pollForProofFromBackend(sessionId, setProofData, setError, 2000, 90);
+
+      // Try to get the request URL if available
+      try {
+        const url = await reclaimProofRequest.getRequestUrl();
+        setRequestUrl(url);
+        setStatusMessage(`Scan the QR code or complete verification in the popup window`);
+      } catch (e) {
+        // If getRequestUrl is not available, just show waiting message
+        setStatusMessage(`Complete verification in the popup window or mobile device`);
+      }
+
+      // Poll for proof
+      pollForProofFromBackend(sessionId);
     } catch (err) {
       setError(`Failed to initialize ${provider.name} verification. Please try again.`);
-      setIsVerifying(false);
+      setStatus('error');
+      setStatusMessage(`Failed to start ${provider.name} verification.`);
     }
+  };
+
+  const handleCancelVerification = () => {
+    isCancelledRef.current = true;
+    setStatus('cancelled');
+    setStatusMessage('Verification cancelled by user.');
+    setRequestUrl(null);
+    setTimeout(() => {
+      setStatus('idle');
+      setStatusMessage('');
+    }, 3000);
+  };
+
+  const handleRetryVerification = () => {
+    handleVerification();
+  };
+
+  const resetVerification = () => {
+    isCancelledRef.current = false;
+    setStatus('idle');
+    setError(null);
+    setProofData(null);
+    setRequestUrl(null);
+    setStatusMessage('');
+    setCopied(false);
   };
 
   const copyProofToClipboard = async () => {
@@ -202,72 +260,166 @@ export default function ProviderPage() {
         </div>
       </div>
 
-      {/* Verification Section */}
-      <div className="privacy-card">
-        <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-privacy-text">
-            Verify Your {provider.name} Account
-          </h2>
-          
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+      {/* Status Messages */}
+      {statusMessage && (
+        <Alert className={`${status === 'success' ? 'border-privacy-success/30 bg-privacy-success/5' :
+          status === 'error' ? 'border-red-500/30 bg-red-500/5' :
+            status === 'cancelled' ? 'border-yellow-500/30 bg-yellow-500/5' :
+              'border-privacy-accent/30 bg-privacy-accent/5'
+          }`}>
+          {status === 'success' && <CheckCircle className="h-4 w-4 text-privacy-success" />}
+          {status === 'error' && <AlertCircle className="h-4 w-4 text-red-400" />}
+          {status === 'cancelled' && <X className="h-4 w-4 text-yellow-400" />}
+          {(status === 'generating' || status === 'waiting') && <QrCode className="h-4 w-4 text-privacy-accent" />}
+          <AlertTitle>
+            {status === 'success' && 'Verification Successful'}
+            {status === 'error' && 'Verification Failed'}
+            {status === 'cancelled' && 'Verification Cancelled'}
+            {status === 'generating' && 'Preparing Verification'}
+            {status === 'waiting' && 'Waiting for Verification'}
+          </AlertTitle>
+          <AlertDescription>{statusMessage}</AlertDescription>
+        </Alert>
+      )}
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-privacy-text">Requirements</h3>
-              <ul className="space-y-2">
-                {info.requirements.map((req, index) => (
-                  <li key={index} className="flex items-center space-x-2 text-privacy-secondary">
-                    <CheckCircle className="h-4 w-4 text-privacy-success" />
-                    <span>{req}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-privacy-text">What Gets Verified</h3>
-              <ul className="space-y-2">
-                {info.verifies.map((item, index) => (
-                  <li key={index} className="flex items-center space-x-2 text-privacy-secondary">
-                    <Shield className="h-4 w-4 text-privacy-accent" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+      {error && status === 'error' && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error Details</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Verification Display */}
+      {status === 'waiting' && (
+        <div className="privacy-card max-w-md mx-auto animate-fade-in">
+          <div className="text-center space-y-6">
+            <h3 className="text-xl font-bold text-privacy-text">
+              Verify Your {provider.name} Account
+            </h3>
+
+            {requestUrl ? (
+              <>
+                <div className="bg-white p-4 rounded-lg">
+                  <QRCode value={requestUrl} size={200} />
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-privacy-secondary text-sm">
+                    Scan the QR code with your mobile device or click the link below
+                  </p>
+
+                  <div className="flex flex-col gap-3">
+                    <Button
+                      onClick={() => window.open(requestUrl, '_blank')}
+                      className="w-full"
+                    >
+                      Open Verification Link
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={handleCancelVerification}
+                      className="w-full"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Cancel Verification
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-privacy-accent"></div>
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-privacy-secondary text-sm">
+                    Complete the verification process in the popup window or on your mobile device
+                  </p>
+
+                  <Button
+                    variant="outline"
+                    onClick={handleCancelVerification}
+                    className="w-full"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel Verification
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
+        </div>
+      )}
 
-          <div className="text-center pt-6 border-t border-white/10">
-            <Button
-              onClick={handleVerification}
-              disabled={isVerifying}
-              size="lg"
-              className="w-full md:w-auto"
-            >
-              {isVerifying ? (
-                <span className="flex items-center justify-center space-x-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  <span>Verifying {provider.name}...</span>
-                </span>
-              ) : (
+      {/* Verification Section - Only show when idle */}
+      {status === 'idle' && (
+        <div className="privacy-card">
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-privacy-text">
+              Verify Your {provider.name} Account
+            </h2>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-privacy-text">Requirements</h3>
+                <ul className="space-y-2">
+                  {info.requirements.map((req, index) => (
+                    <li key={index} className="flex items-center space-x-2 text-privacy-secondary">
+                      <CheckCircle className="h-4 w-4 text-privacy-success" />
+                      <span>{req}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-privacy-text">What Gets Verified</h3>
+                <ul className="space-y-2">
+                  {info.verifies.map((item, index) => (
+                    <li key={index} className="flex items-center space-x-2 text-privacy-secondary">
+                      <Shield className="h-4 w-4 text-privacy-accent" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            <div className="text-center pt-6 border-t border-white/10">
+              <Button
+                onClick={handleVerification}
+                size="lg"
+                className="w-full md:w-auto"
+              >
                 <span className="flex items-center justify-center space-x-2">
                   <Shield className="h-5 w-5" />
                   <span>Start {provider.name} Verification</span>
                 </span>
-              )}
-            </Button>
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Action Buttons for Error/Cancelled States */}
+      {(status === 'error' || status === 'cancelled') && (
+        <div className="flex justify-center gap-4">
+          {status === 'error' && (
+            <Button onClick={handleRetryVerification}>
+              Try Again
+            </Button>
+          )}
+          <Button variant="outline" onClick={resetVerification}>
+            Start Over
+          </Button>
+        </div>
+      )}
 
       {/* Proof Display */}
-      {proofData && (
+      {proofData && status === 'success' && (
         <div className="privacy-card animate-fade-in">
           <div className="space-y-6">
             <div className="flex items-center space-x-2">
@@ -315,6 +467,12 @@ export default function ProviderPage() {
                     <Eye className="h-4 w-4" />
                     <span>Preview Verification</span>
                   </span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={resetVerification}
+                >
+                  Verify Again
                 </Button>
               </div>
             </div>

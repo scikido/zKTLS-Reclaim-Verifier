@@ -22,13 +22,13 @@ export async function GET(req: NextRequest) {
   let callbackUrl: string;
   
   if (callbackUrlOverride) {
-    callbackUrl = callbackUrlOverride;
-    console.log('Using callback URL override:', callbackUrl);
+    callbackUrl = `${callbackUrlOverride}?sessionId=${sessionId}`;
+    console.log('Using callback URL override with sessionId:', callbackUrl);
   } else {
     const host = req.headers.get('host');
     const proto = req.headers.get('x-forwarded-proto') || 'http';
-    callbackUrl = `${proto}://${host}/api/reclaim-callback`;
-    console.log('Constructed callback URL:', callbackUrl);
+    callbackUrl = `${proto}://${host}/api/reclaim-callback?sessionId=${sessionId}`;
+    console.log('Constructed callback URL with sessionId:', callbackUrl);
     console.log('Host:', host);
     console.log('Proto:', proto);
   }

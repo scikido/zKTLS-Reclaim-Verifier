@@ -136,8 +136,9 @@ export default function Home() {
         setStatusMessage(`Complete verification in the popup window or mobile device`);
       }
       
-      // Poll for proof from both backend and direct SDK
+      // Poll for proof from multiple sources
       pollForProofFromBackend(sessionId);
+      pollForProofFromWebhook(sessionId);
       pollForProofFromSDK();
     } catch (err) {
       setError(`Failed to initialize ${provider.name} verification. Please try again.`);
@@ -162,6 +163,36 @@ export default function Home() {
     if (selectedProvider) {
       handleProviderVerification(selectedProvider);
     }
+  };
+
+  const pollForProofFromWebhook = async (sessionId: string, interval = 2500, maxAttempts = 80) => {
+    let attempts = 0;
+    const poll = async () => {
+      if (isCancelledRef.current) return;
+      
+      try {
+        const res = await fetch(`/api/reclaim-webhook?sessionId=${sessionId}`);
+        const data = await res.json();
+        if (data.found && data.proof) {
+          setProofData(data.proof);
+          setStatus('success');
+          setStatusMessage(`${currentProviderName} verification completed successfully!`);
+          console.log('Proof found via webhook:', data.source);
+          return;
+        }
+        attempts++;
+        if (attempts < maxAttempts && !isCancelledRef.current) {
+          setTimeout(poll, interval);
+        }
+      } catch (err) {
+        console.log('Webhook polling failed:', err);
+        attempts++;
+        if (attempts < maxAttempts && !isCancelledRef.current) {
+          setTimeout(poll, interval);
+        }
+      }
+    };
+    poll();
   };
 
   const handleManualCheck = async () => {

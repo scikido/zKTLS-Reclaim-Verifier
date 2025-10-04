@@ -5,8 +5,14 @@ const proofs: Record<string, any> = {};
 
 export async function POST(req: NextRequest) {
   console.log('Reclaim webhook received');
-  const body = await req.json();
-  console.log('Webhook body:', JSON.stringify(body, null, 2));
+  
+  try {
+    const { searchParams } = new URL(req.url);
+    const rawbody = await req.text();
+    const decoded = decodeURIComponent(rawbody);
+    const body = JSON.parse(decoded);
+    
+    console.log('Webhook body:', JSON.stringify(body, null, 2));
   
   // Store the proof with multiple keys for maximum compatibility
   const timestamp = Date.now();
@@ -39,6 +45,13 @@ export async function POST(req: NextRequest) {
   console.log('All stored sessions:', Object.keys(proofs));
   
   return NextResponse.json({ status: 'ok', proofId, timestamp });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    return NextResponse.json({ 
+      error: 'Failed to process webhook', 
+      details: error instanceof Error ? error.message : String(error) 
+    }, { status: 500 });
+  }
 }
 
 export async function GET(req: NextRequest) {

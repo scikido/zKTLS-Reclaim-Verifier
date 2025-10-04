@@ -98,11 +98,11 @@ export default function ProviderPage() {
     let attempts = 0;
     const poll = async () => {
       if (isCancelledRef.current) return;
-      
+
       try {
         const reclaimProofRequest = reclaimProofRequestRef.current;
         if (!reclaimProofRequest) return;
-        
+
         const proofs = await reclaimProofRequest.getProofs();
         if (proofs && proofs.length > 0) {
           setProofData(proofs[0]);
@@ -110,7 +110,7 @@ export default function ProviderPage() {
           setStatusMessage(`${provider?.name} verification completed successfully!`);
           return;
         }
-        
+
         attempts++;
         if (attempts < maxAttempts && !isCancelledRef.current) {
           setTimeout(poll, interval);
@@ -194,7 +194,7 @@ export default function ProviderPage() {
     let attempts = 0;
     const poll = async () => {
       if (isCancelledRef.current) return;
-      
+
       try {
         const res = await fetch(`/api/reclaim-webhook?sessionId=${sessionId}`);
         const data = await res.json();
@@ -227,7 +227,7 @@ export default function ProviderPage() {
         setError('Session not found. Please restart verification.');
         return;
       }
-      
+
       setStatusMessage('Checking for proof manually...');
       const proofs = await reclaimProofRequest.getProofs();
       if (proofs && proofs.length > 0) {
@@ -410,7 +410,7 @@ export default function ProviderPage() {
                       <X className="h-4 w-4 mr-2" />
                       Cancel Verification
                     </Button>
-                    
+
                     <Button
                       variant="secondary"
                       onClick={handleManualCheck}

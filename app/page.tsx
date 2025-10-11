@@ -7,8 +7,11 @@ import QRCode from 'react-qr-code';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { providers, Provider, getProvidersByCategory } from '@/lib/providers';
+import { providers, Provider } from '@/lib/providers';
 import ProviderStats from '@/components/ProviderStats';
+import OnchainVerification from '@/components/OnchainVerification';
+import Layout from '@/components/Layout';
+import ConnectWalletButton from '@/components/ConnectWalletButton';
 
 interface ProofData {
   claimData: {
@@ -31,6 +34,7 @@ export default function Home() {
   const [currentProviderName, setCurrentProviderName] = useState<string>('');
   const [requestUrl, setRequestUrl] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [showOnchainVerification, setShowOnchainVerification] = useState(false);
   const reclaimProofRequestRef = useRef<any>(null);
   const isCancelledRef = useRef(false);
 
@@ -226,6 +230,17 @@ export default function Home() {
     setRequestUrl(null);
     setStatusMessage('');
     setCopied(false);
+    setShowOnchainVerification(false);
+  };
+
+  const handleOnchainSuccess = (txHash: string) => {
+    console.log('Onchain verification successful:', txHash);
+    // Could show a success message or redirect to dashboard
+  };
+
+  const handleOnchainError = (error: string) => {
+    console.error('Onchain verification failed:', error);
+    // Could show an error message
   };
 
   const copyProofToClipboard = async () => {
@@ -249,7 +264,8 @@ export default function Home() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-12">
+    <Layout>
+      <div className="max-w-6xl mx-auto space-y-12">
       {/* Hero Section */}
       <div className="text-center space-y-6 animate-fade-in">
         <div className="flex justify-center">
@@ -267,6 +283,15 @@ export default function Home() {
           Verify your digital accounts without exposing personal data. 
           Generate cryptographic proofs that preserve your privacy while establishing trust across platforms.
         </p>
+        
+        {/* Wallet Connection */}
+        <div className="flex justify-center">
+          <ConnectWalletButton 
+            size="lg"
+            showAddress={true}
+            className="max-w-md"
+          />
+        </div>
       </div>
 
       {/* Features Grid */}
@@ -518,6 +543,21 @@ export default function Home() {
                 </Button>
                 <Button
                   variant="outline"
+                  onClick={() => window.location.href = '/dashboard'}
+                  className="bg-privacy-accent/10 border-privacy-accent/30 text-privacy-accent hover:bg-privacy-accent/20"
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  View Dashboard
+                </Button>
+                <Button
+                  onClick={() => setShowOnchainVerification(!showOnchainVerification)}
+                  className="bg-privacy-accent hover:bg-privacy-accent/90"
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  {showOnchainVerification ? 'Hide' : 'Verify Onchain'}
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={resetVerification}
                 >
                   Verify Another Account
@@ -527,6 +567,18 @@ export default function Home() {
           </div>
         </div>
       )}
-    </div>
+
+      {/* Onchain Verification Section */}
+      {proofData && status === 'success' && showOnchainVerification && (
+        <div className="animate-fade-in max-w-4xl mx-auto">
+          <OnchainVerification
+            proof={proofData}
+            onSuccess={handleOnchainSuccess}
+            onError={handleOnchainError}
+          />
+        </div>
+      )}
+      </div>
+    </Layout>
   );
 }

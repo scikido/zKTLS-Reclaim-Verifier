@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Shield, Home, CheckCircle, Grid3X3 } from 'lucide-react';
+import { Shield, Home, CheckCircle, Grid3X3, BarChart3 } from 'lucide-react';
 
 export default function Navigation() {
   const pathname = usePathname();
@@ -41,6 +41,18 @@ export default function Navigation() {
             >
               <Grid3X3 className="h-4 w-4" />
               <span>Providers</span>
+            </Link>
+            
+            <Link
+              href="/dashboard"
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                pathname === '/dashboard'
+                  ? 'bg-privacy-accent/20 text-privacy-accent'
+                  : 'text-privacy-secondary hover:text-privacy-text hover:bg-white/5'
+              }`}
+            >
+              <BarChart3 className="h-4 w-4" />
+              <span>Dashboard</span>
             </Link>
             
             <Link

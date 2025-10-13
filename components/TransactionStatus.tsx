@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+
 
 type TransactionStatus = 'pending' | 'confirming' | 'confirmed' | 'failed';
 
@@ -174,10 +174,12 @@ export default function TransactionStatus({
                 {Math.round(getProgressPercentage())}%
               </span>
             </div>
-            <Progress 
-              value={getProgressPercentage()} 
-              className="h-2"
-            />
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-privacy-accent h-2 rounded-full transition-all duration-300" 
+                style={{ width: `${getProgressPercentage()}%` }}
+              ></div>
+            </div>
           </div>
         )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface WalletState {
   address: string | null;
@@ -18,9 +18,12 @@ export function useWallet() {
     isConnecting: false,
     error: null
   });
+  
+  const isMountedRef = useRef(true);
 
   // Check wallet connection on mount
   useEffect(() => {
+    isMountedRef.current = true;
     checkConnection();
 
     // Listen for account and chain changes
@@ -29,21 +32,26 @@ export function useWallet() {
       window.ethereum.on('chainChanged', handleChainChanged);
 
       return () => {
-        if (window.ethereum.removeListener) {
+        isMountedRef.current = false;
+        if (window.ethereum && window.ethereum.removeListener) {
           window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
           window.ethereum.removeListener('chainChanged', handleChainChanged);
         }
       };
     }
+    
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   const checkConnection = async () => {
     try {
-      if (typeof window !== 'undefined' && window.ethereum) {
+      if (typeof window !== 'undefined' && window.ethereum && isMountedRef.current) {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         const chainId = await window.ethereum.request({ method: 'eth_chainId' });
 
-        if (accounts.length > 0) {
+        if (accounts.length > 0 && isMountedRef.current) {
           setState(prev => ({
             ...prev,
             address: accounts[0],
@@ -55,10 +63,18 @@ export function useWallet() {
       }
     } catch (error) {
       console.error('Error checking wallet connection:', error);
+      if (isMountedRef.current) {
+        setState(prev => ({
+          ...prev,
+          error: 'Failed to check wallet connection'
+        }));
+      }
     }
   };
 
   const handleAccountsChanged = (accounts: string[]) => {
+    if (!isMountedRef.current) return;
+    
     if (accounts.length === 0) {
       setState(prev => ({
         ...prev,
@@ -77,19 +93,26 @@ export function useWallet() {
   };
 
   const handleChainChanged = (chainId: string) => {
+    if (!isMountedRef.current) return;
     setState(prev => ({ ...prev, chainId }));
   };
 
   const connect = useCallback(async () => {
+    if (!isMountedRef.current) return false;
+    
     if (!window.ethereum) {
-      setState(prev => ({
-        ...prev,
-        error: 'No Web3 wallet detected. Please install MetaMask.'
-      }));
+      if (isMountedRef.current) {
+        setState(prev => ({
+          ...prev,
+          error: 'No Web3 wallet detected. Please install MetaMask.'
+        }));
+      }
       return false;
     }
 
-    setState(prev => ({ ...prev, isConnecting: true, error: null }));
+    if (isMountedRef.current) {
+      setState(prev => ({ ...prev, isConnecting: true, error: null }));
+    }
 
     try {
       const accounts = await window.ethereum.request({
@@ -131,14 +154,16 @@ export function useWallet() {
         }
       }
 
-      setState(prev => ({
-        ...prev,
-        address: accounts[0],
-        chainId: '0xaa36a7',
-        isConnected: true,
-        isConnecting: false,
-        error: null
-      }));
+      if (isMountedRef.current) {
+        setState(prev => ({
+          ...prev,
+          address: accounts[0],
+          chainId: '0xaa36a7',
+          isConnected: true,
+          isConnecting: false,
+          error: null
+        }));
+      }
 
       return true;
     } catch (error: any) {
@@ -146,24 +171,28 @@ export function useWallet() {
         ? 'Connection rejected by user'
         : error.message || 'Failed to connect wallet';
 
-      setState(prev => ({
-        ...prev,
-        isConnecting: false,
-        error: errorMessage
-      }));
+      if (isMountedRef.current) {
+        setState(prev => ({
+          ...prev,
+          isConnecting: false,
+          error: errorMessage
+        }));
+      }
 
       return false;
     }
   }, []);
 
   const disconnect = useCallback(() => {
-    setState({
-      address: null,
-      chainId: null,
-      isConnected: false,
-      isConnecting: false,
-      error: null
-    });
+    if (isMountedRef.current) {
+      setState({
+        address: null,
+        chainId: null,
+        isConnected: false,
+        isConnecting: false,
+        error: null
+      });
+    }
   }, []);
 
   const isCorrectNetwork = () => {

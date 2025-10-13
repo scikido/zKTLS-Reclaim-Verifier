@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ProofDashboard from '@/components/ProofDashboard';
-import Layout from '@/components/Layout';
 import { useWallet } from '@/hooks/useWallet';
 
 declare global {
@@ -26,8 +25,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <Layout>
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       {/* Page Header */}
       <div className="text-center space-y-4">
         <h1 className="text-3xl md:text-4xl font-bold text-privacy-text">
@@ -67,7 +65,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-      </div>
-    </Layout>
+    </div>
   );
 }

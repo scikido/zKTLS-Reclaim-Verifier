@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import TransactionStatus from '@/components/TransactionStatus';
 
 interface ProofData {
@@ -325,10 +324,12 @@ export default function OnchainVerification({ proof, onSuccess, onError }: Oncha
               <p className="text-sm text-privacy-text">{getStatusMessage()}</p>
               <span className="text-xs text-privacy-secondary">{state.progress}%</span>
             </div>
-            <Progress 
-              value={state.progress} 
-              className="h-2"
-            />
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-privacy-accent h-2 rounded-full transition-all duration-300" 
+                style={{ width: `${state.progress}%` }}
+              ></div>
+            </div>
           </div>
         )}
 

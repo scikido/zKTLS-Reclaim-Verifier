@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Wallet, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import Layout from '@/components/Layout';
 import ConnectWalletButton from '@/components/ConnectWalletButton';
 import WalletConnection from '@/components/WalletConnection';
 import { useWallet } from '@/hooks/useWallet';
@@ -24,10 +23,9 @@ export default function WalletTestPage() {
   };
 
   return (
-    <Layout>
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Page Header */}
-        <div className="text-center space-y-4">
+    <div className="max-w-4xl mx-auto space-y-8">
+      {/* Page Header */}
+      <div className="text-center space-y-4">
           <div className="flex justify-center">
             <div className="p-4 rounded-full bg-privacy-accent/10 border border-privacy-accent/20">
               <Wallet className="h-12 w-12 text-privacy-accent" />
@@ -189,7 +187,6 @@ export default function WalletTestPage() {
             </a>
           </div>
         </div>
-      </div>
-    </Layout>
+    </div>
   );
 }

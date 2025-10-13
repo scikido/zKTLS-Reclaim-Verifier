@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { providers, Provider } from '@/lib/providers';
 import ProviderStats from '@/components/ProviderStats';
 import OnchainVerification from '@/components/OnchainVerification';
-import Layout from '@/components/Layout';
 import ConnectWalletButton from '@/components/ConnectWalletButton';
 
 interface ProofData {
@@ -264,8 +263,7 @@ export default function Home() {
   };
 
   return (
-    <Layout>
-      <div className="max-w-6xl mx-auto space-y-12">
+    <div className="max-w-6xl mx-auto space-y-12">
       {/* Hero Section */}
       <div className="text-center space-y-6 animate-fade-in">
         <div className="flex justify-center">
@@ -578,7 +576,6 @@ export default function Home() {
           />
         </div>
       )}
-      </div>
-    </Layout>
+    </div>
   );
 }

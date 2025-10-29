@@ -28,9 +28,10 @@ interface ProofData {
 }
 
 interface OnchainVerificationProps {
-  proof: ProofData;
-  onSuccess?: (txHash: string) => void;
+  proof?: ProofData; // Make proof optional for proof generation mode
+  onSuccess?: (txHash: string, proof?: any) => void;
   onError?: (error: string) => void;
+  mode?: 'verify' | 'generate'; // New mode for component behavior
 }
 
 type VerificationStatus = 'idle' | 'connecting' | 'submitting' | 'confirming' | 'success' | 'error';
@@ -45,7 +46,7 @@ interface OnchainVerificationState {
   gasUsed?: string;
 }
 
-export default function OnchainVerification({ proof, onSuccess, onError }: OnchainVerificationProps) {
+export default function OnchainVerification({ proof, onSuccess, onError, mode = 'verify' }: OnchainVerificationProps) {
   const [state, setState] = useState<OnchainVerificationState>({
     status: 'idle',
     walletAddress: null,
@@ -55,6 +56,7 @@ export default function OnchainVerification({ proof, onSuccess, onError }: Oncha
   });
 
   const [copiedTxHash, setCopiedTxHash] = useState(false);
+  const [generatedProof, setGeneratedProof] = useState<any>(null);
 
   // Check if wallet is already connected on component mount
   useEffect(() => {
@@ -90,13 +92,14 @@ export default function OnchainVerification({ proof, onSuccess, onError }: Oncha
         throw new Error('No accounts found. Please unlock your wallet.');
       }
 
-      // Check if we're on the correct network (Sepolia)
+      // Check if we're on the correct network (Base Sepolia)
       const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-      if (chainId !== '0xaa36a7') { // Sepolia chain ID
+      const baseSepoliaChainId = '0x14a34'; // 84532 in decimal
+      if (chainId !== baseSepoliaChainId) {
         try {
           await window.ethereum.request({
             method: 'wallet_switchEthereumChain',
-            params: [{ chainId: '0xaa36a7' }],
+            params: [{ chainId: baseSepoliaChainId }],
           });
         } catch (switchError: any) {
           if (switchError.code === 4902) {
@@ -104,15 +107,15 @@ export default function OnchainVerification({ proof, onSuccess, onError }: Oncha
             await window.ethereum.request({
               method: 'wallet_addEthereumChain',
               params: [{
-                chainId: '0xaa36a7',
-                chainName: 'Sepolia Testnet',
+                chainId: baseSepoliaChainId,
+                chainName: 'Base Sepolia',
                 nativeCurrency: {
                   name: 'ETH',
                   symbol: 'ETH',
                   decimals: 18,
                 },
-                rpcUrls: ['https://sepolia.infura.io/v3/'],
-                blockExplorerUrls: ['https://sepolia.etherscan.io/'],
+                rpcUrls: ['https://sepolia.base.org'],
+                blockExplorerUrls: ['https://sepolia-explorer.base.org'],
               }],
             });
           } else {
@@ -154,36 +157,76 @@ export default function OnchainVerification({ proof, onSuccess, onError }: Oncha
       ...prev, 
       status: 'submitting', 
       error: null, 
-      progress: 30 
+      progress: 20 
     }));
 
     try {
-      // Simulate proof submission process
-      // In real implementation, this would interact with the smart contract
+      let proofToVerify = proof || generatedProof;
       
-      // Step 1: Prepare proof data
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setState(prev => ({ ...prev, progress: 50 }));
+      if (!proofToVerify && mode === 'generate') {
+        // Generate proof first
+        setState(prev => ({ ...prev, progress: 30 }));
+        
+        const generateResponse = await fetch('/api/generate-proof', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd",
+            method: "GET",
+            responseMatches: [
+              {
+                type: "regex",
+                value: "\\{\"ethereum\":\\{\"usd\":(?<price>[\\d\\.]+)\\}\\}"
+              }
+            ]
+          })
+        });
+        
+        const generateResult = await generateResponse.json();
+        
+        if (!generateResult.success) {
+          throw new Error(generateResult.error || 'Failed to generate proof');
+        }
+        
+        proofToVerify = generateResult.proof;
+        setGeneratedProof(proofToVerify);
+      }
+      
+      if (!proofToVerify) {
+        throw new Error('No proof available for verification');
+      }
 
-      // Step 2: Submit transaction
+      // Step 2: Verify proof onchain
       setState(prev => ({ ...prev, status: 'confirming', progress: 70 }));
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const verifyResponse = await fetch('/api/verify-onchain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proof: proofToVerify,
+          privateKey: window.ethereum ? await window.ethereum.request({ method: 'eth_accounts' }).then(() => null) : null
+          // Note: privateKey will be handled server-side from environment variables
+        })
+      });
+      
+      const verifyResult = await verifyResponse.json();
+      
+      if (!verifyResult.success) {
+        throw new Error(verifyResult.error || 'Failed to verify proof onchain');
+      }
 
-      // Step 3: Wait for confirmation
-      const mockTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('');
-      const mockBlockNumber = Math.floor(Math.random() * 1000000) + 12000000;
-      const mockGasUsed = (Math.floor(Math.random() * 50000) + 100000).toLocaleString();
+      const { result } = verifyResult;
       
       setState(prev => ({ 
         ...prev, 
         status: 'success', 
-        transactionHash: mockTxHash,
-        blockNumber: mockBlockNumber,
-        gasUsed: mockGasUsed,
+        transactionHash: result.transactionHash,
+        blockNumber: result.blockNumber,
+        gasUsed: result.gasUsed.toString(),
         progress: 100
       }));
 
-      onSuccess?.(mockTxHash);
+      onSuccess?.(result.transactionHash, proofToVerify);
 
     } catch (error: any) {
       const errorMessage = parseContractError(error);
@@ -280,7 +323,10 @@ export default function OnchainVerification({ proof, onSuccess, onError }: Oncha
           <div>
             <CardTitle className="text-privacy-text">Onchain Verification</CardTitle>
             <CardDescription className="text-privacy-secondary">
-              Submit your {proof.claimData.provider} proof to the blockchain for permanent verification
+              {mode === 'generate' 
+                ? 'Generate and verify a proof on the blockchain for permanent verification'
+                : `Submit your ${proof?.claimData?.provider || 'Reclaim'} proof to the blockchain for permanent verification`
+              }
             </CardDescription>
           </div>
         </div>
@@ -300,7 +346,7 @@ export default function OnchainVerification({ proof, onSuccess, onError }: Oncha
               </div>
             </div>
             <Badge variant="outline" className="text-green-500 border-green-500/30">
-              Sepolia Testnet
+              Base Sepolia
             </Badge>
           </div>
         ) : (
@@ -408,7 +454,7 @@ export default function OnchainVerification({ proof, onSuccess, onError }: Oncha
         {/* Information */}
         <div className="text-center text-xs text-privacy-secondary space-y-1">
           <p>
-            Onchain verification creates a permanent, immutable record of your proof on the Sepolia blockchain.
+            Onchain verification creates a permanent, immutable record of your proof on the Base Sepolia blockchain.
           </p>
           <p>
             This process requires a small amount of ETH for gas fees (~$0.01-0.05).

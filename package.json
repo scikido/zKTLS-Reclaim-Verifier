@@ -39,6 +39,7 @@
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.2",
     "@reclaimprotocol/js-sdk": "^4.3.1",
+    "@reclaimprotocol/zk-fetch": "^0.3.1",
     "@types/node": "20.6.2",
     "@types/react": "18.2.22",
     "@types/react-dom": "18.2.7",
@@ -49,10 +50,13 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "date-fns": "^3.6.0",
+    "dotenv": "^16.4.5",
     "embla-carousel-react": "^8.3.0",
     "eslint": "8.49.0",
     "eslint-config-next": "13.5.1",
+    "ethers": "5.7",
     "input-otp": "^1.2.4",
+    "js-base64": "^3.7.7",
     "lucide-react": "^0.446.0",
     "next": "13.5.1",
     "next-themes": "^0.3.0",
@@ -73,5 +77,8 @@
     "uuid": "^11.1.0",
     "vaul": "^0.9.9",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "ignore-loader": "^0.1.2"
   }
 }

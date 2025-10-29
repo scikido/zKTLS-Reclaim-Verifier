@@ -1,109 +1,215 @@
 /**
- * TypeScript interfaces and utilities for ProofRegistry smart contract
+ * TypeScript interfaces and utilities for Reclaim Protocol smart contract
  */
 
-// Contract ABI for ethers.js integration
-export const PROOF_REGISTRY_ABI = [
+// Official Reclaim Protocol Contract ABI (verifyProof function)
+export const RECLAIM_CONTRACT_ABI = [
   {
-    "inputs": [
-      {"internalType": "bytes", "name": "proofData", "type": "bytes"},
-      {"internalType": "string", "name": "provider", "type": "string"}
-    ],
-    "name": "submitProof",
-    "outputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
-    "stateMutability": "nonpayable",
-    "type": "function"
+    "inputs": [],
+    "name": "Reclaim__GroupAlreadyExists",
+    "type": "error"
   },
   {
-    "inputs": [{"internalType": "bytes32", "name": "proofHash", "type": "bytes32"}],
+    "inputs": [],
+    "name": "Reclaim__UserAlreadyMerkelized",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "string",
+                "name": "provider",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "parameters",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "context",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct Claims.ClaimInfo",
+            "name": "claimInfo",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "bytes32",
+                    "name": "identifier",
+                    "type": "bytes32"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "owner",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint32",
+                    "name": "timestampS",
+                    "type": "uint32"
+                  },
+                  {
+                    "internalType": "uint32",
+                    "name": "epoch",
+                    "type": "uint32"
+                  }
+                ],
+                "internalType": "struct Claims.CompleteClaimData",
+                "name": "claim",
+                "type": "tuple"
+              },
+              {
+                "internalType": "bytes[]",
+                "name": "signatures",
+                "type": "bytes[]"
+              }
+            ],
+            "internalType": "struct Claims.SignedClaim",
+            "name": "signedClaim",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct Reclaim.Proof",
+        "name": "proof",
+        "type": "tuple"
+      }
+    ],
     "name": "verifyProof",
     "outputs": [
       {
-        "components": [
-          {"internalType": "bytes32", "name": "proofHash", "type": "bytes32"},
-          {"internalType": "address", "name": "submitter", "type": "address"},
-          {"internalType": "uint256", "name": "timestamp", "type": "uint256"},
-          {"internalType": "string", "name": "provider", "type": "string"},
-          {"internalType": "bool", "name": "isValid", "type": "bool"}
-        ],
-        "internalType": "struct ProofRegistry.ProofRecord",
+        "internalType": "bool",
         "name": "",
-        "type": "tuple"
+        "type": "bool"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
-    "name": "getUserProofs",
-    "outputs": [{"internalType": "bytes32[]", "name": "", "type": "bytes32[]"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
-    "name": "getUserProofCount",
-    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [{"internalType": "bytes32", "name": "proofHash", "type": "bytes32"}],
-    "name": "proofExists",
-    "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "version",
-    "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "string",
+                "name": "provider",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "parameters",
+                "type": "string"
+              },
+              {
+                "internalType": "string",
+                "name": "context",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct Claims.ClaimInfo",
+            "name": "claimInfo",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "bytes32",
+                    "name": "identifier",
+                    "type": "bytes32"
+                  },
+                  {
+                    "internalType": "address",
+                    "name": "owner",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "uint32",
+                    "name": "timestampS",
+                    "type": "uint32"
+                  },
+                  {
+                    "internalType": "uint32",
+                    "name": "epoch",
+                    "type": "uint32"
+                  }
+                ],
+                "internalType": "struct Claims.CompleteClaimData",
+                "name": "claim",
+                "type": "tuple"
+              },
+              {
+                "internalType": "bytes[]",
+                "name": "signatures",
+                "type": "bytes[]"
+              }
+            ],
+            "internalType": "struct Claims.SignedClaim",
+            "name": "signedClaim",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct Reclaim.Proof",
+        "name": "proof",
+        "type": "tuple"
+      }
+    ],
+    "name": "getProviderFromProof",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
     "stateMutability": "pure",
     "type": "function"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {"indexed": true, "internalType": "bytes32", "name": "proofHash", "type": "bytes32"},
-      {"indexed": true, "internalType": "address", "name": "submitter", "type": "address"},
-      {"indexed": false, "internalType": "string", "name": "provider", "type": "string"},
-      {"indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256"}
-    ],
-    "name": "ProofSubmitted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {"indexed": true, "internalType": "bytes32", "name": "proofHash", "type": "bytes32"},
-      {"indexed": true, "internalType": "address", "name": "querier", "type": "address"},
-      {"indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256"}
-    ],
-    "name": "ProofQueried",
-    "type": "event"
   }
 ] as const;
 
-// TypeScript interfaces for contract interaction
-export interface ProofRecord {
-  proofHash: string;
-  submitter: string;
-  timestamp: bigint;
+// TypeScript interfaces for Reclaim Protocol proof structure
+export interface ClaimInfo {
   provider: string;
-  isValid: boolean;
+  parameters: string;
+  context: string;
 }
 
-export interface OnchainProofRecord extends ProofRecord {
-  transactionHash: string;
-  blockNumber: number;
+export interface CompleteClaimData {
+  identifier: string;
+  owner: string;
+  timestampS: number;
+  epoch: number;
 }
 
-export interface ProofSubmissionResult {
-  proofHash: string;
+export interface SignedClaim {
+  claim: CompleteClaimData;
+  signatures: string[];
+}
+
+export interface ReclaimProof {
+  claimInfo: ClaimInfo;
+  signedClaim: SignedClaim;
+}
+
+export interface OnchainVerificationResult {
+  success: boolean;
   transactionHash: string;
   blockNumber: number;
   gasUsed: bigint;
+  provider?: string;
 }
 
 export interface ContractError {
@@ -112,23 +218,23 @@ export interface ContractError {
   reason?: string;
 }
 
-// Contract configuration
+// Contract configuration for different networks
 export const CONTRACT_CONFIG = {
-  // Sepolia testnet configuration
-  sepolia: {
-    chainId: 11155111,
-    name: "Sepolia Testnet",
-    rpcUrl: process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "https://sepolia.infura.io/v3/",
-    explorerUrl: "https://sepolia.etherscan.io",
-    contractAddress: process.env.NEXT_PUBLIC_PROOF_REGISTRY_ADDRESS || "",
-  },
-  // Base testnet configuration (for future use)
-  baseTestnet: {
+  // Base Sepolia testnet (primary network)
+  baseSepolia: {
     chainId: 84532,
     name: "Base Sepolia",
     rpcUrl: "https://sepolia.base.org",
     explorerUrl: "https://sepolia-explorer.base.org",
-    contractAddress: "", // To be set when deployed
+    contractAddress: "0xF90085f5Fd1a3bEb8678623409b3811eCeC5f6A5",
+  },
+  // Ethereum Sepolia testnet (fallback)
+  sepolia: {
+    chainId: 11155111,
+    name: "Sepolia Testnet",
+    rpcUrl: "https://sepolia.infura.io/v3/",
+    explorerUrl: "https://sepolia.etherscan.io",
+    contractAddress: "0xF90085f5Fd1a3bEb8678623409b3811eCeC5f6A5",
   }
 };
 
@@ -211,7 +317,7 @@ export const ContractUtils = {
 };
 
 export default {
-  PROOF_REGISTRY_ABI,
+  RECLAIM_CONTRACT_ABI,
   CONTRACT_CONFIG,
   CONTRACT_ERRORS,
   GAS_ESTIMATES,

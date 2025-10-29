@@ -248,11 +248,11 @@ export default function TransactionStatus({
           {transactionHash && (
             <Button
               variant="outline"
-              onClick={() => window.open(`https://sepolia.etherscan.io/tx/${transactionHash}`, '_blank')}
+              onClick={() => window.open(`https://sepolia-explorer.base.org/tx/${transactionHash}`, '_blank')}
               className="flex-1 border-privacy-accent/30 text-privacy-accent hover:bg-privacy-accent/10"
             >
               <ExternalLink className="h-4 w-4 mr-2" />
-              View on Etherscan
+              View on Explorer
             </Button>
           )}
           
@@ -268,7 +268,7 @@ export default function TransactionStatus({
 
         {/* Network Information */}
         <div className="text-center text-xs text-privacy-secondary">
-          <p>Transaction on Sepolia Testnet • Chain ID: 11155111</p>
+          <p>Transaction on Base Sepolia • Chain ID: 84532</p>
         </div>
       </CardContent>
     </Card>

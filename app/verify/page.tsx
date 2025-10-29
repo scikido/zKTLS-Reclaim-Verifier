@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { CheckCircle, XCircle, AlertTriangle, Clipboard, Shield } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Clipboard, Shield, Download, RefreshCw, Upload } from 'lucide-react';
 
 interface ProofData {
   claimData: {
@@ -25,6 +25,8 @@ export default function VerifyPage() {
     error?: string;
   } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchResults, setBatchResults] = useState<any[]>([]);
 
   useEffect(() => {
     const proofFromUrl = searchParams.get('proof');
@@ -162,6 +164,63 @@ export default function VerifyPage() {
     }
   };
 
+  const handleBatchVerification = async () => {
+    if (verificationMode !== 'hash') return;
+    
+    const hashes = hashInput.split('\n').map(h => h.trim()).filter(h => h);
+    if (hashes.length === 0) return;
+
+    setIsVerifying(true);
+    setBatchResults([]);
+
+    const results = [];
+    for (const hash of hashes) {
+      try {
+        const response = await fetch('/api/verify-hash', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hash }),
+        });
+        const result = await response.json();
+        results.push({ hash, ...result });
+      } catch (error) {
+        results.push({ hash, success: false, error: 'Verification failed' });
+      }
+    }
+
+    setBatchResults(results);
+    setIsVerifying(false);
+  };
+
+  const exportResults = () => {
+    const data = verificationResult ? [verificationResult] : batchResults;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `verification-results-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (verificationMode === 'proof') {
+        setProofInput(content);
+      } else {
+        setHashInput(content);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const pasteFromClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -227,13 +286,36 @@ export default function VerifyPage() {
             <h2 className="text-xl font-semibold text-privacy-text">
               {verificationMode === 'proof' ? 'Proof Input' : 'Hash Input'}
             </h2>
-            <button
-              onClick={pasteFromClipboard}
-              className="flex items-center space-x-2 px-3 py-2 text-sm bg-white/5 hover:bg-white/10 rounded-lg border border-white/20 transition-colors"
-            >
-              <Clipboard className="h-4 w-4" />
-              <span>Paste</span>
-            </button>
+            <div className="flex items-center space-x-2">
+              {verificationMode === 'hash' && (
+                <label className="flex items-center space-x-2 px-3 py-2 text-sm bg-white/5 hover:bg-white/10 rounded-lg border border-white/20 transition-colors cursor-pointer">
+                  <Upload className="h-4 w-4" />
+                  <span>Upload</span>
+                  <input
+                    type="file"
+                    accept=".txt,.json"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
+              )}
+              <button
+                onClick={pasteFromClipboard}
+                className="flex items-center space-x-2 px-3 py-2 text-sm bg-white/5 hover:bg-white/10 rounded-lg border border-white/20 transition-colors"
+              >
+                <Clipboard className="h-4 w-4" />
+                <span>Paste</span>
+              </button>
+              {(verificationResult || batchResults.length > 0) && (
+                <button
+                  onClick={exportResults}
+                  className="flex items-center space-x-2 px-3 py-2 text-sm bg-privacy-accent/10 hover:bg-privacy-accent/20 rounded-lg border border-privacy-accent/30 transition-colors text-privacy-accent"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Export</span>
+                </button>
+              )}
+            </div>
           </div>
           
           {verificationMode === 'proof' ? (
@@ -244,17 +326,47 @@ export default function VerifyPage() {
               className="privacy-input w-full h-40 resize-y font-mono text-sm"
             />
           ) : (
-            <input
-              type="text"
-              value={hashInput}
-              onChange={(e) => setHashInput(e.target.value)}
-              placeholder="Enter transaction hash or proof hash (0x...)"
-              className="privacy-input w-full font-mono text-sm"
-            />
+            <div className="space-y-2">
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={batchMode}
+                    onChange={(e) => setBatchMode(e.target.checked)}
+                    className="rounded border-white/20 bg-white/5 text-privacy-accent focus:ring-privacy-accent"
+                  />
+                  <span className="text-sm text-privacy-secondary">Batch mode (multiple hashes)</span>
+                </label>
+              </div>
+              {batchMode ? (
+                <textarea
+                  value={hashInput}
+                  onChange={(e) => setHashInput(e.target.value)}
+                  placeholder="Enter multiple hashes, one per line:&#10;0x1234...&#10;0x5678...&#10;0x9abc..."
+                  className="privacy-input w-full h-32 resize-y font-mono text-sm"
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={hashInput}
+                  onChange={(e) => setHashInput(e.target.value)}
+                  placeholder="Enter transaction hash or proof hash (0x...)"
+                  className="privacy-input w-full font-mono text-sm"
+                />
+              )}
+            </div>
           )}
           
           <button
-            onClick={() => verificationMode === 'proof' ? handleVerification() : handleHashVerification()}
+            onClick={() => {
+              if (verificationMode === 'proof') {
+                handleVerification();
+              } else if (batchMode) {
+                handleBatchVerification();
+              } else {
+                handleHashVerification();
+              }
+            }}
             disabled={isVerifying || (verificationMode === 'proof' ? !proofInput.trim() : !hashInput.trim())}
             className="privacy-button w-full disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -266,7 +378,14 @@ export default function VerifyPage() {
             ) : (
               <span className="flex items-center justify-center space-x-2">
                 <Shield className="h-5 w-5" />
-                <span>{verificationMode === 'proof' ? 'Verify Proof' : 'Verify Hash'}</span>
+                <span>
+                  {verificationMode === 'proof' 
+                    ? 'Verify Proof' 
+                    : batchMode 
+                      ? 'Verify Batch' 
+                      : 'Verify Hash'
+                  }
+                </span>
               </span>
             )}
           </button>
@@ -386,6 +505,56 @@ export default function VerifyPage() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Batch Results */}
+      {batchResults.length > 0 && (
+        <div className="privacy-card animate-fade-in">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-privacy-text">
+                Batch Verification Results
+              </h3>
+              <div className="text-sm text-privacy-secondary">
+                {batchResults.filter(r => r.success).length} / {batchResults.length} verified
+              </div>
+            </div>
+            
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {batchResults.map((result, index) => (
+                <div
+                  key={index}
+                  className={`p-3 rounded-lg border ${
+                    result.success 
+                      ? 'border-privacy-success/30 bg-privacy-success/5' 
+                      : 'border-red-500/30 bg-red-500/5'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      {result.success ? (
+                        <CheckCircle className="h-4 w-4 text-privacy-success" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-400" />
+                      )}
+                      <span className="font-mono text-xs text-privacy-text">
+                        {result.hash?.slice(0, 10)}...{result.hash?.slice(-8)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-privacy-secondary">
+                      {result.success ? 'Verified' : result.error || 'Failed'}
+                    </div>
+                  </div>
+                  {result.success && result.blockNumber && (
+                    <div className="mt-2 text-xs text-privacy-secondary">
+                      Block: {result.blockNumber} | Provider: {result.provider || 'Unknown'}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

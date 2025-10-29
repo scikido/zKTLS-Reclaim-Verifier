@@ -304,7 +304,7 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
       // Wait for confirmation
       const receipt = await tx.wait();
 
-      return {
+      const result = {
         success: true,
         transactionHash: tx.hash,
         blockNumber: receipt.blockNumber,
@@ -313,6 +313,35 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
         verificationFee: '0.001 ETH',
         note: 'Verification fee paid to demonstrate real blockchain transaction'
       };
+
+      // Store the proof in user's dashboard
+      try {
+        const userAddress = await signer.getAddress();
+        await fetch('/api/user-proofs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userAddress: userAddress,
+            proof: {
+              proofHash: tx.hash,
+              submitter: userAddress,
+              timestamp: Math.floor(Date.now() / 1000),
+              provider: proof?.claimInfo?.provider || 'Onchain Verification',
+              isValid: true,
+              transactionHash: tx.hash,
+              blockNumber: receipt.blockNumber,
+              gasUsed: receipt.gasUsed.toString(),
+              verificationFee: '0.001 ETH'
+            }
+          })
+        });
+      } catch (storageError) {
+        console.warn('Could not store proof in dashboard:', storageError);
+      }
+
+      return result;
 
     } catch (error: any) {
       console.error('Wallet verification error:', error);

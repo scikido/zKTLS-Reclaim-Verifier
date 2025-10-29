@@ -61,36 +61,7 @@ export default function ProofDashboard({ userAddress, onConnectWallet }: ProofDa
   const [selectedProof, setSelectedProof] = useState<OnchainProofRecord | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  // Mock data for demonstration - in real implementation, this would fetch from blockchain
-  const mockProofs: OnchainProofRecord[] = [
-    {
-      proofHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-      submitter: userAddress || '0x742d35cc6634c0532925a3b8d4c9db96590c6c87',
-      timestamp: BigInt(Math.floor(Date.now() / 1000) - 86400), // 1 day ago
-      provider: 'Gmail',
-      isValid: true,
-      transactionHash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
-      blockNumber: 12345678
-    },
-    {
-      proofHash: '0x2345678901bcdef12345678901bcdef12345678901bcdef12345678901bcdef1',
-      submitter: userAddress || '0x742d35cc6634c0532925a3b8d4c9db96590c6c87',
-      timestamp: BigInt(Math.floor(Date.now() / 1000) - 172800), // 2 days ago
-      provider: 'GitHub',
-      isValid: true,
-      transactionHash: '0xbcdef12345678901bcdef12345678901bcdef12345678901bcdef12345678901',
-      blockNumber: 12345600
-    },
-    {
-      proofHash: '0x3456789012cdef123456789012cdef123456789012cdef123456789012cdef12',
-      submitter: userAddress || '0x742d35cc6634c0532925a3b8d4c9db96590c6c87',
-      timestamp: BigInt(Math.floor(Date.now() / 1000) - 259200), // 3 days ago
-      provider: 'Twitter',
-      isValid: true,
-      transactionHash: '0xcdef123456789012cdef123456789012cdef123456789012cdef123456789012',
-      blockNumber: 12345500
-    }
-  ];
+  // Real data fetching - no more mock data
 
   // Simulate loading user proofs
   useEffect(() => {
@@ -105,21 +76,30 @@ export default function ProofDashboard({ userAddress, onConnectWallet }: ProofDa
     setState(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Fetch real user proofs from API
+      const response = await fetch(`/api/user-proofs?address=${userAddress}`);
+      const data = await response.json();
       
-      // In real implementation, this would call the blockchain
-      // const proofs = await web3Service.getUserProofs(userAddress);
-      
+      if (response.ok && data.success) {
+        // Convert timestamp strings back to BigInt for display
+        const proofs = data.proofs.map((proof: any) => ({
+          ...proof,
+          timestamp: typeof proof.timestamp === 'string' ? BigInt(proof.timestamp) : proof.timestamp
+        }));
+        
+        setState(prev => ({ 
+          ...prev, 
+          proofs: proofs, 
+          loading: false 
+        }));
+      } else {
+        throw new Error(data.error || 'Failed to fetch proofs');
+      }
+    } catch (error: any) {
+      console.error('Error loading user proofs:', error);
       setState(prev => ({ 
         ...prev, 
-        proofs: userAddress ? mockProofs : [], 
-        loading: false 
-      }));
-    } catch (error) {
-      setState(prev => ({ 
-        ...prev, 
-        error: 'Failed to load onchain proofs. Please try again.', 
+        error: error.message || 'Failed to load onchain proofs. Please try again.', 
         loading: false 
       }));
     }

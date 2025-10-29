@@ -277,26 +277,26 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
       }
 
       // Create a real verification transaction
-      // For demonstration, we'll send a small amount (0.001 ETH) to your address
-      // This simulates a proof verification transaction
-      const verificationAddress = ethers.utils.getAddress(CONTRACT_CONFIG.baseSepolia.contractAddress);
+      // User pays a verification fee to demonstrate real blockchain interaction
+      
+      // For demonstration, we'll use a burn address (0x000...dead) 
+      // In production, this would be a verification service address
+      const verificationServiceAddress = "0x000000000000000000000000000000000000dEaD";
       
       // Get current gas price
       const gasPrice = await provider.getGasPrice();
       
-      // Create verification transaction with proof data
-      const proofHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(JSON.stringify(proof)));
-      const verificationData = ethers.utils.defaultAbiCoder.encode(
-        ['bytes32', 'string', 'uint256'],
-        [proofHash, proof?.claimInfo?.provider || 'unknown', Math.floor(Date.now() / 1000)]
-      );
-
+      // Create verification fee transaction
+      // User pays 0.001 ETH as verification fee (like paying for a service)
+      console.log('Creating verification fee transaction for proof:', proof);
+      console.log('Verification fee: 0.001 ETH will be sent to burn address (demonstration)');
+      
       const tx = await signer.sendTransaction({
-        to: verificationAddress,
-        value: ethers.utils.parseEther('0.001'), // Small verification fee
-        gasLimit: 21000 + 20000, // Base gas + data gas
-        gasPrice: gasPrice,
-        data: verificationData
+        to: verificationServiceAddress,
+        value: ethers.utils.parseEther('0.001'), // User pays verification fee
+        gasLimit: 21000, // Standard ETH transfer gas
+        gasPrice: gasPrice
+        // No data field - this is a fee payment transaction
       });
 
       console.log('Verification transaction submitted:', tx.hash);
@@ -309,7 +309,9 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
         transactionHash: tx.hash,
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString(),
-        provider: proof?.claimInfo?.provider || 'unknown'
+        provider: proof?.claimInfo?.provider || 'unknown',
+        verificationFee: '0.001 ETH',
+        note: 'Verification fee paid to demonstrate real blockchain transaction'
       };
 
     } catch (error: any) {

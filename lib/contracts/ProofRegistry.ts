@@ -2,6 +2,59 @@
  * TypeScript interfaces and utilities for Reclaim Protocol smart contract
  */
 
+// Simple Verification Contract ABI for demonstration
+export const SIMPLE_VERIFICATION_ABI = [
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "proofHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "string",
+        "name": "provider",
+        "type": "string"
+      }
+    ],
+    "name": "verifyProof",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "proofHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "provider",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "ProofVerified",
+    "type": "event"
+  }
+];
+
 // Official Reclaim Protocol Contract ABI (verifyProof function)
 export const RECLAIM_CONTRACT_ABI = [
   {
@@ -236,7 +289,7 @@ export const CONTRACT_CONFIG = {
     name: "Base Sepolia",
     rpcUrl: "https://sepolia.base.org",
     explorerUrl: "https://sepolia-explorer.base.org",
-    contractAddress: "0x773abD95bfF76FF1228E9e046dE68C25B905e45A", // Your address for testing
+    contractAddress: "0x000000000000000000000000000000000000dEaD", // Burn address for demo
   },
   // Ethereum Sepolia testnet (fallback)
   sepolia: {
@@ -244,7 +297,7 @@ export const CONTRACT_CONFIG = {
     name: "Sepolia Testnet",
     rpcUrl: "https://sepolia.infura.io/v3/",
     explorerUrl: "https://sepolia.etherscan.io",
-    contractAddress: "0x773abD95bfF76FF1228E9e046dE68C25B905e45A", // Your address for testing
+    contractAddress: "0x000000000000000000000000000000000000dEaD", // Burn address for demo
   }
 };
 

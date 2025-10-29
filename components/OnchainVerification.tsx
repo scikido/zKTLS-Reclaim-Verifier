@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import TransactionStatus from '@/components/TransactionStatus';
+import { CONTRACT_CONFIG, RECLAIM_CONTRACT_ABI } from '@/lib/contracts/ProofRegistry';
 
 interface ProofData {
   claimData: {
@@ -196,26 +197,10 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
         throw new Error('No proof available for verification');
       }
 
-      // Step 2: Verify proof onchain
+      // Step 2: Verify proof onchain using user's wallet
       setState(prev => ({ ...prev, status: 'confirming', progress: 70 }));
       
-      const verifyResponse = await fetch('/api/verify-onchain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          proof: proofToVerify,
-          privateKey: window.ethereum ? await window.ethereum.request({ method: 'eth_accounts' }).then(() => null) : null
-          // Note: privateKey will be handled server-side from environment variables
-        })
-      });
-      
-      const verifyResult = await verifyResponse.json();
-      
-      if (!verifyResult.success) {
-        throw new Error(verifyResult.error || 'Failed to verify proof onchain');
-      }
-
-      const { result } = verifyResult;
+      const result = await verifyProofWithWallet(proofToVerify);
       
       setState(prev => ({ 
         ...prev, 
@@ -238,6 +223,101 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
       }));
       
       onError?.(errorMessage);
+    }
+  };
+
+  const verifyProofWithWallet = async (proof: any) => {
+    if (!window.ethereum) {
+      throw new Error('No Web3 wallet detected. Please install MetaMask.');
+    }
+
+    if (!state.walletAddress) {
+      throw new Error('Please connect your wallet first.');
+    }
+
+    try {
+      // Import ethers dynamically for client-side use
+      const { ethers } = await import('ethers');
+      
+      // Create provider and signer
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      
+      // Check network - switch to Base Sepolia if needed
+      const network = await provider.getNetwork();
+      const baseSepoliaChainId = 84532;
+      
+      if (network.chainId !== baseSepoliaChainId) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x14a34' }], // Base Sepolia
+          });
+        } catch (switchError: any) {
+          if (switchError.code === 4902) {
+            // Network not added, add it
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: '0x14a34',
+                chainName: 'Base Sepolia',
+                nativeCurrency: {
+                  name: 'ETH',
+                  symbol: 'ETH',
+                  decimals: 18,
+                },
+                rpcUrls: ['https://sepolia.base.org'],
+                blockExplorerUrls: ['https://sepolia-explorer.base.org'],
+              }],
+            });
+          } else {
+            throw switchError;
+          }
+        }
+      }
+
+      // Create contract instance
+      const contractAddress = CONTRACT_CONFIG.baseSepolia.contractAddress;
+      const contract = new ethers.Contract(contractAddress, RECLAIM_CONTRACT_ABI, signer);
+
+      // Transform proof for onchain submission
+      const transformResponse = await fetch('/api/generate-proof', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proof })
+      });
+
+      if (!transformResponse.ok) {
+        throw new Error('Failed to transform proof for blockchain submission');
+      }
+
+      const { transformedProof } = await transformResponse.json();
+
+      // Estimate gas
+      const gasEstimate = await contract.estimateGas.verifyProof(transformedProof);
+      const gasLimit = gasEstimate.mul(120).div(100); // Add 20% buffer
+
+      // Submit transaction
+      const tx = await contract.verifyProof(transformedProof, {
+        gasLimit: gasLimit
+      });
+
+      console.log('Transaction submitted:', tx.hash);
+
+      // Wait for confirmation
+      const receipt = await tx.wait();
+
+      return {
+        success: true,
+        transactionHash: tx.hash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString(),
+        provider: proof?.claimInfo?.provider || 'unknown'
+      };
+
+    } catch (error: any) {
+      console.error('Wallet verification error:', error);
+      throw error;
     }
   };
 

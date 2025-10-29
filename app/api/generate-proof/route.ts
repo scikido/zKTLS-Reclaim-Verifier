@@ -4,11 +4,26 @@ import { getOnchainVerificationService, type ProofGenerationOptions } from '@/li
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    
+    // Check if this is a proof transformation request
+    if (body.proof && !body.url) {
+      // Transform existing proof for onchain submission
+      const onchainService = getOnchainVerificationService();
+      const transformedProof = await onchainService.transformProofForOnchain(body.proof);
+      
+      return NextResponse.json({ 
+        success: true, 
+        transformedProof,
+        message: 'Proof transformed for onchain submission' 
+      });
+    }
+    
+    // Otherwise, generate new proof
     const { url, method, responseMatches, headers } = body as ProofGenerationOptions;
 
     if (!url || !responseMatches) {
       return NextResponse.json(
-        { error: 'Missing required fields: url and responseMatches' },
+        { error: 'Missing required fields: url and responseMatches (or proof for transformation)' },
         { status: 400 }
       );
     }
@@ -30,11 +45,11 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Error generating proof:', error);
+    console.error('Error generating/transforming proof:', error);
     
     return NextResponse.json(
       { 
-        error: error.message || 'Failed to generate proof',
+        error: error.message || 'Failed to generate/transform proof',
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }

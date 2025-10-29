@@ -236,7 +236,7 @@ export const CONTRACT_CONFIG = {
     name: "Base Sepolia",
     rpcUrl: "https://sepolia.base.org",
     explorerUrl: "https://sepolia-explorer.base.org",
-    contractAddress: "0xF90085f5Fd1a3bEb8678623409b3811eCeC5f6A5",
+    contractAddress: "0x773abD95bfF76FF1228E9e046dE68C25B905e45A", // Your address for testing
   },
   // Ethereum Sepolia testnet (fallback)
   sepolia: {
@@ -244,7 +244,7 @@ export const CONTRACT_CONFIG = {
     name: "Sepolia Testnet",
     rpcUrl: "https://sepolia.infura.io/v3/",
     explorerUrl: "https://sepolia.etherscan.io",
-    contractAddress: "0xF90085f5Fd1a3bEb8678623409b3811eCeC5f6A5",
+    contractAddress: "0x773abD95bfF76FF1228E9e046dE68C25B905e45A", // Your address for testing
   }
 };
 

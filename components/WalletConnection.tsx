@@ -156,9 +156,9 @@ export default function WalletConnection({
 
       const chainId = await window.ethereum.request({ method: 'eth_chainId' });
 
-      // Check if we're on Sepolia testnet
-      if (chainId !== '0xaa36a7') {
-        await switchToSepolia();
+      // Check if we're on Base Sepolia testnet
+      if (chainId !== '0x14a34') { // Base Sepolia chain ID
+        await switchToBaseSepolia();
       }
 
       setState(prev => ({ 
@@ -187,11 +187,11 @@ export default function WalletConnection({
     }
   };
 
-  const switchToSepolia = async () => {
+  const switchToBaseSepolia = async () => {
     try {
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0xaa36a7' }],
+        params: [{ chainId: '0x14a34' }], // Base Sepolia
       });
     } catch (switchError: any) {
       if (switchError.code === 4902) {
@@ -199,15 +199,15 @@ export default function WalletConnection({
         await window.ethereum.request({
           method: 'wallet_addEthereumChain',
           params: [{
-            chainId: '0xaa36a7',
-            chainName: 'Sepolia Testnet',
+            chainId: '0x14a34',
+            chainName: 'Base Sepolia',
             nativeCurrency: {
               name: 'ETH',
               symbol: 'ETH',
               decimals: 18,
             },
-            rpcUrls: ['https://sepolia.infura.io/v3/'],
-            blockExplorerUrls: ['https://sepolia.etherscan.io/'],
+            rpcUrls: ['https://sepolia.base.org'],
+            blockExplorerUrls: ['https://sepolia-explorer.base.org'],
           }],
         });
       } else {
@@ -255,6 +255,8 @@ export default function WalletConnection({
 
   const getNetworkName = (chainId: string | null) => {
     switch (chainId) {
+      case '0x14a34':
+        return 'Base Sepolia';
       case '0xaa36a7':
         return 'Sepolia Testnet';
       case '0x1':
@@ -264,12 +266,12 @@ export default function WalletConnection({
       case '0x2105':
         return 'Base';
       default:
-        return 'Unknown Network';
+        return 'Network Not yet Supported';
     }
   };
 
   const isCorrectNetwork = () => {
-    return state.chainId === '0xaa36a7';
+    return state.chainId === '0x14a34'; // Base Sepolia
   };
 
   if (state.address) {
@@ -324,7 +326,7 @@ export default function WalletConnection({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={switchToSepolia}
+                  onClick={switchToBaseSepolia}
                   className="border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
                 >
                   <Settings className="h-3 w-3 mr-1" />

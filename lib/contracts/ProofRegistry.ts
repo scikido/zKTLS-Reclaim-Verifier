@@ -208,7 +208,7 @@ export interface OnchainVerificationResult {
   success: boolean;
   transactionHash: string;
   blockNumber: number;
-  gasUsed: bigint;
+  gasUsed: bigint | string; // Can be bigint for real transactions or string for mock/serialization
   provider?: string;
 }
 

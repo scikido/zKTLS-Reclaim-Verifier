@@ -371,7 +371,7 @@ export default function ProofDashboard({ userAddress, onConnectWallet }: ProofDa
             </div>
             <CardTitle className="text-xl text-privacy-text mb-2">No Onchain Proofs Yet</CardTitle>
             <CardDescription className="text-privacy-secondary mb-4">
-              You haven't submitted any proofs to the blockchain yet. 
+              You haven&apos;t submitted any proofs to the blockchain yet. 
               Generate a proof and verify it onchain to see it here.
             </CardDescription>
             <Button 

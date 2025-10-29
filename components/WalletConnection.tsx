@@ -391,7 +391,7 @@ export default function WalletConnection({
 
         <div className="text-center space-y-2">
           <p className="text-xs text-privacy-secondary">
-            Don't have a wallet? 
+            Don&apos;t have a wallet? 
             <Button
               variant="link"
               size="sm"

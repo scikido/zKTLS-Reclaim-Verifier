@@ -212,6 +212,16 @@ export interface OnchainVerificationResult {
   provider?: string;
 }
 
+export interface OnchainProofRecord {
+  proofHash: string;
+  submitter: string;
+  timestamp: bigint;
+  provider: string;
+  isValid: boolean;
+  transactionHash: string;
+  blockNumber: number;
+}
+
 export interface ContractError {
   code: string;
   message: string;
@@ -316,10 +326,12 @@ export const ContractUtils = {
   }
 };
 
-export default {
+const ProofRegistryExports = {
   RECLAIM_CONTRACT_ABI,
   CONTRACT_CONFIG,
   CONTRACT_ERRORS,
   GAS_ESTIMATES,
   ContractUtils
 };
+
+export default ProofRegistryExports;

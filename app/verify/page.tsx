@@ -245,7 +245,7 @@ export default function VerifyPage() {
           <div className="space-y-3 text-privacy-secondary">
             <p>
               Zero-knowledge proofs allow verification of claims without revealing the underlying data.
-              When you verify a credential here, you're checking:
+              When you verify a credential here, you&apos;re checking:
             </p>
             <ul className="list-disc list-inside space-y-1 ml-4">
               <li>Cryptographic signature validity</li>

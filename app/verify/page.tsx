@@ -17,6 +17,8 @@ interface ProofData {
 export default function VerifyPage() {
   const searchParams = useSearchParams();
   const [proofInput, setProofInput] = useState('');
+  const [hashInput, setHashInput] = useState('');
+  const [verificationMode, setVerificationMode] = useState<'proof' | 'hash'>('proof');
   const [verificationResult, setVerificationResult] = useState<{
     isValid: boolean;
     details: any;
@@ -26,9 +28,16 @@ export default function VerifyPage() {
 
   useEffect(() => {
     const proofFromUrl = searchParams.get('proof');
+    const hashFromUrl = searchParams.get('proofHash') || searchParams.get('hash');
+    
     if (proofFromUrl) {
       setProofInput(proofFromUrl);
+      setVerificationMode('proof');
       handleVerification(proofFromUrl);
+    } else if (hashFromUrl) {
+      setHashInput(hashFromUrl);
+      setVerificationMode('hash');
+      handleHashVerification(hashFromUrl);
     }
   }, [searchParams]);
 
@@ -92,10 +101,75 @@ export default function VerifyPage() {
     }
   };
 
+  const handleHashVerification = async (hashData?: string) => {
+    const hashToVerify = hashData || hashInput;
+    
+    if (!hashToVerify.trim()) {
+      setVerificationResult({
+        isValid: false,
+        details: null,
+        error: 'Please provide a transaction hash or proof hash to verify'
+      });
+      return;
+    }
+
+    setIsVerifying(true);
+    setVerificationResult(null);
+
+    try {
+      // Validate hash format (should be 0x followed by 64 hex characters)
+      const hashRegex = /^0x[a-fA-F0-9]{64}$/;
+      if (!hashRegex.test(hashToVerify)) {
+        throw new Error('Invalid hash format. Expected 0x followed by 64 hexadecimal characters.');
+      }
+
+      // Call API to verify hash onchain
+      const response = await fetch('/api/verify-hash', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ hash: hashToVerify }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setVerificationResult({
+          isValid: true,
+          details: {
+            hash: hashToVerify,
+            blockNumber: result.blockNumber,
+            timestamp: result.timestamp,
+            transactionHash: result.transactionHash,
+            provider: result.provider || 'Unknown',
+            verificationMethod: 'Onchain Hash Lookup',
+            explorerUrl: result.explorerUrl
+          }
+        });
+      } else {
+        throw new Error(result.error || 'Hash verification failed');
+      }
+
+    } catch (error) {
+      setVerificationResult({
+        isValid: false,
+        details: null,
+        error: error instanceof Error ? error.message : 'Hash verification failed'
+      });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   const pasteFromClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      setProofInput(text);
+      if (verificationMode === 'proof') {
+        setProofInput(text);
+      } else {
+        setHashInput(text);
+      }
     } catch (err) {
       console.error('Failed to read from clipboard:', err);
     }
@@ -116,8 +190,34 @@ export default function VerifyPage() {
         </h1>
         
         <p className="text-lg text-privacy-secondary max-w-2xl mx-auto">
-          Paste a zero-knowledge proof below to verify its authenticity and view the verified claims.
+          Verify zero-knowledge credentials by pasting the full proof data or by entering a transaction/proof hash.
         </p>
+        
+        {/* Mode Toggle */}
+        <div className="flex justify-center">
+          <div className="bg-black/20 p-1 rounded-lg border border-white/20">
+            <button
+              onClick={() => setVerificationMode('proof')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                verificationMode === 'proof'
+                  ? 'bg-privacy-accent text-white'
+                  : 'text-privacy-secondary hover:text-privacy-text'
+              }`}
+            >
+              Verify by Proof
+            </button>
+            <button
+              onClick={() => setVerificationMode('hash')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                verificationMode === 'hash'
+                  ? 'bg-privacy-accent text-white'
+                  : 'text-privacy-secondary hover:text-privacy-text'
+              }`}
+            >
+              Verify by Hash
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Input Section */}
@@ -125,7 +225,7 @@ export default function VerifyPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-privacy-text">
-              Proof Input
+              {verificationMode === 'proof' ? 'Proof Input' : 'Hash Input'}
             </h2>
             <button
               onClick={pasteFromClipboard}
@@ -136,16 +236,26 @@ export default function VerifyPage() {
             </button>
           </div>
           
-          <textarea
-            value={proofInput}
-            onChange={(e) => setProofInput(e.target.value)}
-            placeholder="Paste your zero-knowledge proof here..."
-            className="privacy-input w-full h-40 resize-y font-mono text-sm"
-          />
+          {verificationMode === 'proof' ? (
+            <textarea
+              value={proofInput}
+              onChange={(e) => setProofInput(e.target.value)}
+              placeholder="Paste your zero-knowledge proof here..."
+              className="privacy-input w-full h-40 resize-y font-mono text-sm"
+            />
+          ) : (
+            <input
+              type="text"
+              value={hashInput}
+              onChange={(e) => setHashInput(e.target.value)}
+              placeholder="Enter transaction hash or proof hash (0x...)"
+              className="privacy-input w-full font-mono text-sm"
+            />
+          )}
           
           <button
-            onClick={() => handleVerification()}
-            disabled={isVerifying || !proofInput.trim()}
+            onClick={() => verificationMode === 'proof' ? handleVerification() : handleHashVerification()}
+            disabled={isVerifying || (verificationMode === 'proof' ? !proofInput.trim() : !hashInput.trim())}
             className="privacy-button w-full disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isVerifying ? (
@@ -156,7 +266,7 @@ export default function VerifyPage() {
             ) : (
               <span className="flex items-center justify-center space-x-2">
                 <Shield className="h-5 w-5" />
-                <span>Verify Proof</span>
+                <span>{verificationMode === 'proof' ? 'Verify Proof' : 'Verify Hash'}</span>
               </span>
             )}
           </button>
@@ -214,22 +324,66 @@ export default function VerifyPage() {
                         {new Date(verificationResult.details.timestamp).toLocaleString()}
                       </span>
                     </div>
+                    {verificationResult.details.verificationMethod && (
+                      <div className="flex justify-between">
+                        <span className="text-privacy-secondary">Method:</span>
+                        <span className="text-privacy-text">
+                          {verificationResult.details.verificationMethod}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-privacy-secondary">Witnesses:</span>
-                      <span className="text-privacy-text">
-                        {verificationResult.details.witnessCount}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-privacy-secondary">Signatures:</span>
-                      <span className="text-privacy-text">
-                        {verificationResult.details.signatureCount}
-                      </span>
-                    </div>
+                    {verificationResult.details.witnessCount !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-privacy-secondary">Witnesses:</span>
+                        <span className="text-privacy-text">
+                          {verificationResult.details.witnessCount}
+                        </span>
+                      </div>
+                    )}
+                    {verificationResult.details.signatureCount !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-privacy-secondary">Signatures:</span>
+                        <span className="text-privacy-text">
+                          {verificationResult.details.signatureCount}
+                        </span>
+                      </div>
+                    )}
+                    {verificationResult.details.blockNumber && (
+                      <div className="flex justify-between">
+                        <span className="text-privacy-secondary">Block:</span>
+                        <span className="text-privacy-text">
+                          {verificationResult.details.blockNumber}
+                        </span>
+                      </div>
+                    )}
+                    {verificationResult.details.hash && (
+                      <div className="flex justify-between">
+                        <span className="text-privacy-secondary">Hash:</span>
+                        <span className="text-privacy-text font-mono text-xs">
+                          {verificationResult.details.hash.slice(0, 10)}...{verificationResult.details.hash.slice(-8)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
+                
+                {verificationResult.details.explorerUrl && (
+                  <div className="pt-3 border-t border-white/10">
+                    <a
+                      href={verificationResult.details.explorerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center space-x-2 text-privacy-accent hover:text-privacy-accent/80 transition-colors"
+                    >
+                      <span>View on Explorer</span>
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  </div>
+                )}
               </div>
             )}
           </div>

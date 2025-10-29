@@ -65,7 +65,7 @@ export default function ProofDashboard({ userAddress, onConnectWallet }: ProofDa
   const mockProofs: OnchainProofRecord[] = [
     {
       proofHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-      submitter: userAddress || '0x742d35Cc6634C0532925a3b8D4C9db96590c6C87',
+      submitter: userAddress || '0x742d35cc6634c0532925a3b8d4c9db96590c6c87',
       timestamp: BigInt(Math.floor(Date.now() / 1000) - 86400), // 1 day ago
       provider: 'Gmail',
       isValid: true,
@@ -74,7 +74,7 @@ export default function ProofDashboard({ userAddress, onConnectWallet }: ProofDa
     },
     {
       proofHash: '0x2345678901bcdef12345678901bcdef12345678901bcdef12345678901bcdef1',
-      submitter: userAddress || '0x742d35Cc6634C0532925a3b8D4C9db96590c6C87',
+      submitter: userAddress || '0x742d35cc6634c0532925a3b8d4c9db96590c6c87',
       timestamp: BigInt(Math.floor(Date.now() / 1000) - 172800), // 2 days ago
       provider: 'GitHub',
       isValid: true,
@@ -83,7 +83,7 @@ export default function ProofDashboard({ userAddress, onConnectWallet }: ProofDa
     },
     {
       proofHash: '0x3456789012cdef123456789012cdef123456789012cdef123456789012cdef12',
-      submitter: userAddress || '0x742d35Cc6634C0532925a3b8D4C9db96590c6C87',
+      submitter: userAddress || '0x742d35cc6634c0532925a3b8d4c9db96590c6c87',
       timestamp: BigInt(Math.floor(Date.now() / 1000) - 259200), // 3 days ago
       provider: 'Twitter',
       isValid: true,

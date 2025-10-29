@@ -216,7 +216,7 @@ class ReclaimOnchainVerificationService implements OnchainVerificationService {
           signedClaim: {
             claim: {
               identifier: '0x' + Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join(''),
-              owner: '0x742d35Cc6634C0532925a3b8D4C9db96590c6C87',
+              owner: '0x742d35Cc6634C0532925a3b8D4C9db96590c6C87'.toLowerCase(), // Use lowercase to avoid checksum issues
               timestampS: Math.floor(Date.now() / 1000),
               epoch: 1
             },

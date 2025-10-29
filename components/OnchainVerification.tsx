@@ -276,8 +276,8 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
         }
       }
 
-      // Create contract instance
-      const contractAddress = CONTRACT_CONFIG.baseSepolia.contractAddress;
+      // Create contract instance with proper address checksum
+      const contractAddress = ethers.utils.getAddress(CONTRACT_CONFIG.baseSepolia.contractAddress);
       const contract = new ethers.Contract(contractAddress, RECLAIM_CONTRACT_ABI, signer);
 
       // Transform proof for onchain submission
@@ -327,6 +327,12 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
     }
     if (error.code === -32603) {
       return 'Insufficient funds to pay for gas fees';
+    }
+    if (error.message && error.message.includes('bad address checksum')) {
+      return 'Invalid Ethereum address format. Please check the contract address configuration.';
+    }
+    if (error.message && error.message.includes('invalid address')) {
+      return 'Invalid Ethereum address. Please verify the address format.';
     }
     if (error.reason) {
       switch (error.reason) {

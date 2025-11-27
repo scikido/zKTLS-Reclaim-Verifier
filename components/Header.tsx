@@ -36,6 +36,7 @@ export default function Header({ className = "" }: HeaderProps) {
     { name: 'Home', href: '/' },
     { name: 'Dashboard', href: '/dashboard' },
     { name: 'Providers', href: '/providers' },
+    { name: 'Verify', href: '/verify' },
   ];
 
   return (

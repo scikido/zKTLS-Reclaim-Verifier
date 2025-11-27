@@ -216,6 +216,51 @@ export default function WalletConnection({
     }
   };
 
+  const switchWallet = async () => {
+    setState(prev => ({ ...prev, isConnecting: true, error: null }));
+
+    try {
+      if (!window.ethereum) {
+        throw new Error('No Web3 wallet detected. Please install MetaMask or another Web3 wallet.');
+      }
+
+      // Request accounts will prompt the user to select/switch accounts
+      const accounts = await window.ethereum.request({ 
+        method: 'eth_requestAccounts' 
+      });
+
+      if (accounts.length === 0) {
+        throw new Error('No accounts found. Please unlock your wallet.');
+      }
+
+      const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+
+      setState(prev => ({ 
+        ...prev, 
+        address: accounts[0], 
+        chainId,
+        isConnecting: false,
+        error: null
+      }));
+
+      if (showBalance) {
+        await getBalance(accounts[0]);
+      }
+
+      onConnect?.(accounts[0]);
+
+    } catch (error: any) {
+      const errorMessage = parseWalletError(error);
+      setState(prev => ({ 
+        ...prev, 
+        isConnecting: false, 
+        error: errorMessage
+      }));
+      
+      onError?.(errorMessage);
+    }
+  };
+
   const disconnectWallet = () => {
     setState({
       address: null,
@@ -333,6 +378,16 @@ export default function WalletConnection({
                   Switch Network
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={switchWallet}
+                disabled={state.isConnecting}
+                className="border-privacy-accent/30 text-privacy-accent hover:bg-privacy-accent/10"
+              >
+                <Wallet className="h-3 w-3 mr-1" />
+                Switch Wallet
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"

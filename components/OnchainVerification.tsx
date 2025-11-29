@@ -286,6 +286,18 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
       }
 
       console.log('Using contract address:', contractAddress);
+      
+      // Warn if using the Reclaim Protocol contract address with simple contract ABI
+      if (contractAddress.toLowerCase() === '0xF90085f5Fd1a3bEb8678623409b3811eCeC5f6A5'.toLowerCase()) {
+        console.error('❌ ERROR: Contract address mismatch!');
+        console.error('❌ The configured address (0xF90085f5Fd1a3bEb8678623409b3811eCeC5f6A5) is the Reclaim Protocol contract.');
+        console.error('❌ But you are using SimpleVerificationContract ABI which has a different function signature.');
+        console.error('❌ You need to:');
+        console.error('   1. Deploy your SimpleVerificationContract to Base Sepolia');
+        console.error('   2. Set NEXT_PUBLIC_CONTRACT_ADDRESS to your deployed contract address');
+        console.error('   3. Or update CONTRACT_CONFIG.baseSepolia.contractAddress');
+        throw new Error('Contract address mismatch: The configured address is for Reclaim Protocol contract, but you are using SimpleVerificationContract ABI. Please deploy your SimpleVerificationContract and set NEXT_PUBLIC_CONTRACT_ADDRESS to the deployed contract address.');
+      }
 
       // Step 2: Generate proof hash from proof data
       // Hash the proof JSON string to create a unique identifier
@@ -296,19 +308,37 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
       console.log('Proof data used for hash:', proofString.substring(0, 200) + '...');
 
       // Step 3: Extract provider name from proof
-      const providerName = proof?.claimInfo?.provider || 
-                           proof?.claimData?.provider || 
-                           'unknown';
+      // Try multiple possible locations for provider in the proof structure
+      let providerName = 'unknown';
       
-      // Validate provider name is not empty
-      if (!providerName || providerName.trim() === '' || providerName === 'unknown') {
-        console.warn('Provider name is empty or unknown. Proof structure:', {
+      if (proof?.claimInfo?.provider) {
+        providerName = proof.claimInfo.provider;
+      } else if (proof?.claimData?.provider) {
+        providerName = proof.claimData.provider;
+      } else if (proof?.provider) {
+        providerName = proof.provider;
+      } else if (proof?.signedClaim?.claim?.owner) {
+        // Fallback: use a generic name based on proof type
+        providerName = 'reclaim-proof';
+      }
+      
+      // Validate provider name is not empty or invalid
+      if (!providerName || providerName.trim() === '' || providerName === 'unknown' || providerName.length < 2) {
+        console.error('Provider name is invalid. Full proof structure:', JSON.stringify(proof, null, 2));
+        throw new Error('Could not extract provider name from proof. Please ensure the proof has a valid provider field.');
+      }
+      
+      // Additional validation - check if it looks like a URL fragment
+      if (providerName.toLowerCase().startsWith('http')) {
+        console.error('Provider appears to be a URL fragment. Proof structure:', {
+          providerName,
           hasClaimInfo: !!proof?.claimInfo,
           hasClaimData: !!proof?.claimData,
           claimInfoProvider: proof?.claimInfo?.provider,
           claimDataProvider: proof?.claimData?.provider,
           proofKeys: proof ? Object.keys(proof) : []
         });
+        throw new Error(`Invalid provider name detected: "${providerName}". This appears to be a URL fragment, not a provider name. Please check your proof structure.`);
       }
       
       console.log('Extracted provider:', providerName);

@@ -289,19 +289,49 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
 
       // Step 2: Generate proof hash from proof data
       // Hash the proof JSON string to create a unique identifier
-      const proofString = JSON.stringify(proof);
+      // Note: JSON.stringify order matters, so we create a deterministic representation
+      const proofString = JSON.stringify(proof, Object.keys(proof).sort());
       const proofHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(proofString));
       console.log('Generated proof hash:', proofHash);
+      console.log('Proof data used for hash:', proofString.substring(0, 200) + '...');
 
       // Step 3: Extract provider name from proof
       const providerName = proof?.claimInfo?.provider || 
                            proof?.claimData?.provider || 
                            'unknown';
+      
+      // Validate provider name is not empty
+      if (!providerName || providerName.trim() === '' || providerName === 'unknown') {
+        console.warn('Provider name is empty or unknown. Proof structure:', {
+          hasClaimInfo: !!proof?.claimInfo,
+          hasClaimData: !!proof?.claimData,
+          claimInfoProvider: proof?.claimInfo?.provider,
+          claimDataProvider: proof?.claimData?.provider,
+          proofKeys: proof ? Object.keys(proof) : []
+        });
+      }
+      
       console.log('Extracted provider:', providerName);
 
       // Step 4: Create contract instance and call verifyProof
       console.log('Calling simple verification contract verifyProof function...');
       const contract = new ethers.Contract(contractAddress, SIMPLE_VERIFICATION_ABI, signer);
+      
+      // Check if proof is already verified
+      try {
+        const isAlreadyVerified = await contract.isProofVerified(proofHash);
+        if (isAlreadyVerified) {
+          throw new Error('This proof has already been verified on the blockchain. Each proof can only be verified once.');
+        }
+        console.log('Proof not yet verified, proceeding...');
+      } catch (checkError: any) {
+        // If the error is about already being verified, rethrow it
+        if (checkError.message && checkError.message.includes('already been verified')) {
+          throw checkError;
+        }
+        // Otherwise, log warning but continue (function might not exist or might error for other reasons)
+        console.warn('Could not check proof verification status:', checkError.message);
+      }
       
       // Estimate gas first - this will fail if the proof is already verified
       let gasEstimate;
@@ -342,17 +372,86 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
 
       // Call the contract's verifyProof function with (proofHash, providerName)
       console.log('Calling verifyProof with proofHash:', proofHash, 'and provider:', providerName);
-      const tx = await contract.verifyProof(proofHash, providerName, {
-        gasLimit: gasEstimate.mul(120).div(100), // Add 20% buffer to gas estimate
-      });
+      
+      let tx;
+      try {
+        tx = await contract.verifyProof(proofHash, providerName, {
+          gasLimit: gasEstimate.mul(120).div(100), // Add 20% buffer to gas estimate
+        });
+        console.log('Verification transaction submitted:', tx.hash);
+      } catch (txError: any) {
+        console.error('Transaction submission error:', txError);
+        // Try to extract revert reason
+        let errorMsg = txError.message || 'Transaction failed to submit';
+        
+        if (txError.reason) {
+          errorMsg = txError.reason;
+        } else if (txError.data) {
+          try {
+            // Try to decode the revert reason from error data
+            const decodedError = contract.interface.parseError(txError.data);
+            if (decodedError) {
+              errorMsg = `${decodedError.name}: ${decodedError.args.join(', ')}`;
+            }
+          } catch (decodeErr) {
+            // If decoding fails, try to extract from message
+            const revertMatch = errorMsg.match(/execution reverted:?\s*"?([^"]+)"?/i);
+            if (revertMatch && revertMatch[1]) {
+              errorMsg = revertMatch[1];
+            }
+          }
+        }
+        
+        throw new Error(`Transaction submission failed: ${errorMsg}`);
+      }
 
-      console.log('Verification transaction submitted:', tx.hash);
-
-      // Wait for confirmation
-      const receipt = await tx.wait();
+      // Wait for confirmation and catch revert errors
+      let receipt;
+      try {
+        receipt = await tx.wait();
+      } catch (waitError: any) {
+        console.error('Transaction wait error:', waitError);
+        
+        // If we have a transaction hash, try to get the receipt to check status
+        if (tx && tx.hash) {
+          try {
+            const failedReceipt = await provider.getTransactionReceipt(tx.hash);
+            if (failedReceipt && failedReceipt.status === 0) {
+              // Transaction reverted, try to decode revert reason
+              let revertReason = 'Transaction was reverted';
+              
+              // Try to call the contract's isProofVerified to see if it's already verified
+              try {
+                const isVerified = await contract.isProofVerified(proofHash);
+                if (isVerified) {
+                  revertReason = 'Proof already verified';
+                }
+              } catch (checkError) {
+                // Ignore check error
+              }
+              
+              // Try to decode revert reason from transaction
+              if (waitError.reason) {
+                revertReason = waitError.reason;
+              } else if (waitError.message) {
+                const revertMatch = waitError.message.match(/execution reverted:?\s*"?([^"]+)"?/i);
+                if (revertMatch && revertMatch[1]) {
+                  revertReason = revertMatch[1];
+                }
+              }
+              
+              throw new Error(`Transaction reverted: ${revertReason}`);
+            }
+          } catch (receiptError) {
+            console.error('Error getting receipt:', receiptError);
+          }
+        }
+        
+        throw new Error(waitError.reason || waitError.message || 'Transaction failed. Please check the browser console for details.');
+      }
       
       // Check if transaction reverted
-      if (receipt.status === 0) {
+      if (receipt && receipt.status === 0) {
         throw new Error('Transaction was reverted. The proof verification failed on the contract.');
       }
 
@@ -394,69 +493,95 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
       return result;
 
     } catch (error: any) {
-      console.error('Wallet verification error:', error);
-      
-      // Enhanced error logging
-      if (error.code) {
-        console.error('Error code:', error.code);
-      }
-      if (error.reason) {
-        console.error('Error reason:', error.reason);
-      }
-      if (error.data) {
-        console.error('Error data:', error.data);
-      }
-      if (error.transaction) {
-        console.error('Failed transaction:', error.transaction);
-      }
+      console.error('=== Wallet verification error ===');
+      console.error('Full error object:', error);
+      console.error('Error message:', error.message);
+      console.error('Error code:', error.code);
+      console.error('Error reason:', error.reason);
+      console.error('Error data:', error.data);
+      console.error('Error transaction:', error.transaction);
+      console.error('Error stack:', error.stack);
+      console.error('===============================');
       
       throw error;
     }
   };
 
   const parseContractError = (error: any): string => {
-    console.log('Parsing contract error:', error);
+    console.log('=== Parsing contract error ===');
+    console.log('Error type:', typeof error);
+    console.log('Error keys:', Object.keys(error));
+    console.log('Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     
+    // Check for user rejection first
     if (error.code === 4001) {
       return 'Transaction was rejected by user';
     }
+    
+    // Check for insufficient funds
     if (error.code === -32603) {
-      return 'Insufficient funds to pay for gas fees';
-    }
-    if (error.code === -32000) {
-      return 'Execution reverted. The proof may be invalid or already verified.';
-    }
-    if (error.message && error.message.includes('bad address checksum')) {
-      return 'Invalid Ethereum address format. Please check the contract address configuration.';
-    }
-    if (error.message && error.message.includes('invalid address')) {
-      return 'Invalid Ethereum address. Please verify the address format.';
-    }
-    if (error.message && error.message.includes('execution reverted')) {
-      // Try to extract revert reason from error message
-      const revertMatch = error.message.match(/execution reverted:?\s*(.+)/i);
-      if (revertMatch && revertMatch[1]) {
-        return `Contract execution reverted: ${revertMatch[1]}`;
+      if (error.message && error.message.includes('insufficient funds')) {
+        return 'Insufficient funds to pay for gas fees. Please add more ETH to your wallet.';
       }
-      return 'Contract execution reverted. The proof may be invalid, already verified, or have invalid signatures.';
+      return 'Transaction failed. Please check the browser console for details.';
     }
-    if (error.message && error.message.includes('Gas estimation failed')) {
-      return error.message; // Return the detailed message we created
+    
+    // Check for execution reverted
+    if (error.code === -32000 || error.message?.includes('execution reverted')) {
+      let revertReason = 'Contract execution reverted.';
+      
+      // Try multiple ways to extract the revert reason
+      if (error.reason) {
+        revertReason = error.reason;
+      } else if (error.message) {
+        // Try to extract from various formats
+        const patterns = [
+          /execution reverted:?\s*"?([^"]+)"?/i,
+          /revert\s+"?([^"]+)"?/i,
+          /Error:\s*(.+)/i
+        ];
+        
+        for (const pattern of patterns) {
+          const match = error.message.match(pattern);
+          if (match && match[1]) {
+            revertReason = match[1].trim();
+            break;
+          }
+        }
+      }
+      
+      // Check for specific known errors
+      if (revertReason.includes('Proof already verified') || revertReason.includes('already verified')) {
+        return 'This proof has already been verified on the blockchain. Each proof can only be verified once.';
+      }
+      
+      return `Transaction reverted: ${revertReason}`;
     }
+    
+    // Check for address errors
+    if (error.message?.includes('bad address checksum') || error.message?.includes('invalid address')) {
+      return 'Invalid contract address. Please check the NEXT_PUBLIC_CONTRACT_ADDRESS configuration.';
+    }
+    
+    // Check for gas estimation errors
+    if (error.message?.includes('Gas estimation failed')) {
+      return error.message;
+    }
+    
+    // Check for network errors
+    if (error.code === 'NETWORK_ERROR' || error.message?.includes('network')) {
+      return 'Network error. Please check your connection and try again.';
+    }
+    
+    // Return error reason if available
     if (error.reason) {
-      switch (error.reason) {
-        case 'InvalidProofStructure':
-          return 'The proof data is invalid or malformed';
-        case 'ProofAlreadyExists':
-          return 'This proof has already been submitted to the blockchain';
-        case 'InvalidSignature':
-          return 'The proof signature is invalid';
-        default:
           return error.reason;
-      }
     }
-    // Return the full error message if available
-    return error.message || 'An unexpected error occurred. Please check the browser console for more details.';
+    
+    // Return the error message, or a generic message
+    const errorMessage = error.message || 'Transaction failed. Please check the browser console for more details.';
+    console.log('Returning error message:', errorMessage);
+    return errorMessage;
   };
 
   const copyTransactionHash = async () => {

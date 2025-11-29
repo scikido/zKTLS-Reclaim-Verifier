@@ -90,6 +90,51 @@ export const SIMPLE_VERIFICATION_ABI = [
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "userProofCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "verifiedProofs",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "withdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
   }
 ];
 
@@ -327,9 +372,9 @@ export const CONTRACT_CONFIG = {
     name: "Base Sepolia",
     rpcUrl: "https://sepolia.base.org",
     explorerUrl: "https://sepolia-explorer.base.org",
-    // Default to deployed Reclaim Protocol contract on Base Sepolia
+    // Default to deployed SimpleVerificationContract on Base Sepolia
     // Can be overridden via NEXT_PUBLIC_CONTRACT_ADDRESS environment variable
-    contractAddress: "0xF90085f5Fd1a3bEb8678623409b3811eCeC5f6A5",
+    contractAddress: "0x9ddDb5611C9E4C4EB588b347Cd0B2E482368E564",
   },
   // Ethereum Sepolia testnet (fallback)
   sepolia: {

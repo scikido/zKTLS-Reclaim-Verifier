@@ -288,7 +288,8 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
       console.log('Using contract address:', contractAddress);
       
       // Warn if using the Reclaim Protocol contract address with simple contract ABI
-      if (contractAddress.toLowerCase() === '0xF90085f5Fd1a3bEb8678623409b3811eCeC5f6A5'.toLowerCase()) {
+      const reclaimProtocolAddress = '0xF90085f5Fd1a3bEb8678623409b3811eCeC5f6A5'.toLowerCase();
+      if (contractAddress.toLowerCase() === reclaimProtocolAddress) {
         console.error('❌ ERROR: Contract address mismatch!');
         console.error('❌ The configured address (0xF90085f5Fd1a3bEb8678623409b3811eCeC5f6A5) is the Reclaim Protocol contract.');
         console.error('❌ But you are using SimpleVerificationContract ABI which has a different function signature.');
@@ -298,6 +299,9 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
         console.error('   3. Or update CONTRACT_CONFIG.baseSepolia.contractAddress');
         throw new Error('Contract address mismatch: The configured address is for Reclaim Protocol contract, but you are using SimpleVerificationContract ABI. Please deploy your SimpleVerificationContract and set NEXT_PUBLIC_CONTRACT_ADDRESS to the deployed contract address.');
       }
+      
+      // Log confirmation that we're using the correct contract
+      console.log('✅ Using SimpleVerificationContract at:', contractAddress);
 
       // Step 2: Generate proof hash from proof data
       // Hash the proof JSON string to create a unique identifier

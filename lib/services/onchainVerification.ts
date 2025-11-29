@@ -15,7 +15,9 @@ if (typeof window === 'undefined') {
     ReclaimClient = reclaimZkFetch.ReclaimClient;
     console.log('✅ ReclaimClient loaded successfully');
     
-    transformForOnchain = require("@reclaimprotocol/js-sdk");
+    // transformForOnchain is a named export, not default
+    const jsSdk = require("@reclaimprotocol/js-sdk");
+    transformForOnchain = jsSdk.transformForOnchain;
     console.log('✅ transformForOnchain loaded successfully');
   } catch (error: any) {
     console.error('❌ Failed to load server-side dependencies:', error);
@@ -225,10 +227,24 @@ class ReclaimOnchainVerificationService implements OnchainVerificationService {
         };
       }
 
+      // Log proof structure for debugging
+      console.log('Transforming proof with structure:', {
+        hasClaimInfo: !!proof?.claimInfo,
+        hasClaimData: !!proof?.claimData,
+        hasSignedClaim: !!proof?.signedClaim,
+        proofKeys: proof ? Object.keys(proof) : []
+      });
+      
       const transformedProof = await transformForOnchain(proof);
       if (!transformedProof) {
-        throw new Error('Failed to transform proof');
+        throw new Error('Failed to transform proof - transformForOnchain returned null/undefined');
       }
+      
+      console.log('Proof transformed successfully. Transformed structure:', {
+        hasClaimInfo: !!transformedProof?.claimInfo,
+        hasSignedClaim: !!transformedProof?.signedClaim,
+        transformedKeys: transformedProof ? Object.keys(transformedProof) : []
+      });
       
       return transformedProof;
     } catch (error: any) {

@@ -16,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import TransactionStatus from '@/components/TransactionStatus';
-import { CONTRACT_CONFIG, RECLAIM_CONTRACT_ABI } from '@/lib/contracts/ProofRegistry';
+import { CONTRACT_CONFIG, SIMPLE_VERIFICATION_ABI } from '@/lib/contracts/ProofRegistry';
 
 interface ProofData {
   claimData: {
@@ -276,48 +276,73 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
         }
       }
 
-      // Step 1: Transform proof for onchain submission via API
-      console.log('Transforming proof for onchain submission...');
-      const transformResponse = await fetch('/api/generate-proof', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proof })
-      });
-
-      const transformResult = await transformResponse.json();
-      
-      if (!transformResult.success || !transformResult.transformedProof) {
-        throw new Error(transformResult.error || 'Failed to transform proof for onchain submission');
-      }
-
-      const transformedProof = transformResult.transformedProof;
-      console.log('Proof transformed successfully');
-
-      // Step 2: Get contract address (from env variable or config)
+      // Step 1: Get contract address (from env variable or config)
       const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || CONTRACT_CONFIG.baseSepolia.contractAddress;
       
       // Validate contract address is not a burn address
       if (contractAddress === "0x000000000000000000000000000000000000dEaD" || 
           contractAddress === "0x0000000000000000000000000000000000000000") {
-        throw new Error('Invalid contract address. Please configure NEXT_PUBLIC_CONTRACT_ADDRESS environment variable with a valid Reclaim Protocol contract address.');
+        throw new Error('Invalid contract address. Please configure NEXT_PUBLIC_CONTRACT_ADDRESS environment variable with a valid contract address.');
       }
 
-      // Step 3: Create contract instance and call verifyProof
-      console.log('Calling contract verifyProof function...');
-      const contract = new ethers.Contract(contractAddress, RECLAIM_CONTRACT_ABI, signer);
+      console.log('Using contract address:', contractAddress);
+
+      // Step 2: Generate proof hash from proof data
+      // Hash the proof JSON string to create a unique identifier
+      const proofString = JSON.stringify(proof);
+      const proofHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(proofString));
+      console.log('Generated proof hash:', proofHash);
+
+      // Step 3: Extract provider name from proof
+      const providerName = proof?.claimInfo?.provider || 
+                           proof?.claimData?.provider || 
+                           'unknown';
+      console.log('Extracted provider:', providerName);
+
+      // Step 4: Create contract instance and call verifyProof
+      console.log('Calling simple verification contract verifyProof function...');
+      const contract = new ethers.Contract(contractAddress, SIMPLE_VERIFICATION_ABI, signer);
       
-      // Estimate gas first
+      // Estimate gas first - this will fail if the proof is already verified
       let gasEstimate;
       try {
-        gasEstimate = await contract.estimateGas.verifyProof(transformedProof);
+        console.log('Estimating gas for verifyProof call...');
+        gasEstimate = await contract.estimateGas.verifyProof(proofHash, providerName);
         console.log('Gas estimate:', gasEstimate.toString());
       } catch (estimateError: any) {
-        console.warn('Gas estimation failed, using default:', estimateError.message);
-        gasEstimate = ethers.BigNumber.from(300000); // Default gas limit
+        console.error('Gas estimation error:', estimateError);
+        
+        // Try to extract revert reason
+        let errorMessage = estimateError.message || 'Gas estimation failed';
+        
+        // Check for revert reason in error data
+        if (estimateError.reason) {
+          errorMessage = estimateError.reason;
+        } else if (estimateError.data) {
+          try {
+            // Try to decode the revert reason
+            const decodedError = contract.interface.parseError(estimateError.data);
+            if (decodedError) {
+              errorMessage = decodedError.name + ': ' + decodedError.args.join(', ');
+            }
+          } catch (decodeError) {
+            // If decoding fails, check for common error messages
+            if (errorMessage.includes('execution reverted')) {
+              if (errorMessage.includes('Proof already verified')) {
+                errorMessage = 'This proof has already been verified on the blockchain.';
+              } else {
+                errorMessage = 'Contract execution reverted. The proof may be invalid or already verified.';
+              }
+            }
+          }
+        }
+        
+        throw new Error(`Gas estimation failed: ${errorMessage}`);
       }
 
-      // Call the contract's verifyProof function
-      const tx = await contract.verifyProof(transformedProof, {
+      // Call the contract's verifyProof function with (proofHash, providerName)
+      console.log('Calling verifyProof with proofHash:', proofHash, 'and provider:', providerName);
+      const tx = await contract.verifyProof(proofHash, providerName, {
         gasLimit: gasEstimate.mul(120).div(100), // Add 20% buffer to gas estimate
       });
 
@@ -325,16 +350,19 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
 
       // Wait for confirmation
       const receipt = await tx.wait();
-
-      // Extract provider from proof if available
-      let providerName = proof?.claimInfo?.provider || proof?.claimData?.provider || 'unknown';
       
+      // Check if transaction reverted
+      if (receipt.status === 0) {
+        throw new Error('Transaction was reverted. The proof verification failed on the contract.');
+      }
+
       const result = {
         success: true,
         transactionHash: tx.hash,
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString(),
-        provider: providerName
+        provider: providerName,
+        proofHash: proofHash
       };
 
       // Store the proof in user's dashboard
@@ -348,7 +376,7 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
           body: JSON.stringify({
             userAddress: userAddress,
             proof: {
-              proofHash: tx.hash,
+              proofHash: proofHash,
               submitter: userAddress,
               timestamp: Math.floor(Date.now() / 1000),
               provider: providerName,
@@ -367,22 +395,53 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
 
     } catch (error: any) {
       console.error('Wallet verification error:', error);
+      
+      // Enhanced error logging
+      if (error.code) {
+        console.error('Error code:', error.code);
+      }
+      if (error.reason) {
+        console.error('Error reason:', error.reason);
+      }
+      if (error.data) {
+        console.error('Error data:', error.data);
+      }
+      if (error.transaction) {
+        console.error('Failed transaction:', error.transaction);
+      }
+      
       throw error;
     }
   };
 
   const parseContractError = (error: any): string => {
+    console.log('Parsing contract error:', error);
+    
     if (error.code === 4001) {
       return 'Transaction was rejected by user';
     }
     if (error.code === -32603) {
       return 'Insufficient funds to pay for gas fees';
     }
+    if (error.code === -32000) {
+      return 'Execution reverted. The proof may be invalid or already verified.';
+    }
     if (error.message && error.message.includes('bad address checksum')) {
       return 'Invalid Ethereum address format. Please check the contract address configuration.';
     }
     if (error.message && error.message.includes('invalid address')) {
       return 'Invalid Ethereum address. Please verify the address format.';
+    }
+    if (error.message && error.message.includes('execution reverted')) {
+      // Try to extract revert reason from error message
+      const revertMatch = error.message.match(/execution reverted:?\s*(.+)/i);
+      if (revertMatch && revertMatch[1]) {
+        return `Contract execution reverted: ${revertMatch[1]}`;
+      }
+      return 'Contract execution reverted. The proof may be invalid, already verified, or have invalid signatures.';
+    }
+    if (error.message && error.message.includes('Gas estimation failed')) {
+      return error.message; // Return the detailed message we created
     }
     if (error.reason) {
       switch (error.reason) {
@@ -396,7 +455,8 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
           return error.reason;
       }
     }
-    return error.message || 'An unexpected error occurred';
+    // Return the full error message if available
+    return error.message || 'An unexpected error occurred. Please check the browser console for more details.';
   };
 
   const copyTransactionHash = async () => {

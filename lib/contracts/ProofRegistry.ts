@@ -289,7 +289,9 @@ export const CONTRACT_CONFIG = {
     name: "Base Sepolia",
     rpcUrl: "https://sepolia.base.org",
     explorerUrl: "https://sepolia-explorer.base.org",
-    contractAddress: "0x000000000000000000000000000000000000dEaD", // Burn address for demo
+    // Default to deployed Reclaim Protocol contract on Base Sepolia
+    // Can be overridden via NEXT_PUBLIC_CONTRACT_ADDRESS environment variable
+    contractAddress: "0xF90085f5Fd1a3bEb8678623409b3811eCeC5f6A5",
   },
   // Ethereum Sepolia testnet (fallback)
   sepolia: {
@@ -297,7 +299,7 @@ export const CONTRACT_CONFIG = {
     name: "Sepolia Testnet",
     rpcUrl: "https://sepolia.infura.io/v3/",
     explorerUrl: "https://sepolia.etherscan.io",
-    contractAddress: "0x000000000000000000000000000000000000dEaD", // Burn address for demo
+    contractAddress: "0x000000000000000000000000000000000000dEaD", // Placeholder - update if deploying to Sepolia
   }
 };
 

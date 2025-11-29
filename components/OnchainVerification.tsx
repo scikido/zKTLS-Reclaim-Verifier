@@ -276,27 +276,49 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
         }
       }
 
-      // Create a real verification transaction
-      // User pays a verification fee to demonstrate real blockchain interaction
+      // Step 1: Transform proof for onchain submission via API
+      console.log('Transforming proof for onchain submission...');
+      const transformResponse = await fetch('/api/generate-proof', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proof })
+      });
+
+      const transformResult = await transformResponse.json();
       
-      // For demonstration, we'll use a burn address (0x000...dead) 
-      // In production, this would be a verification service address
-      const verificationServiceAddress = "0x000000000000000000000000000000000000dEaD";
+      if (!transformResult.success || !transformResult.transformedProof) {
+        throw new Error(transformResult.error || 'Failed to transform proof for onchain submission');
+      }
+
+      const transformedProof = transformResult.transformedProof;
+      console.log('Proof transformed successfully');
+
+      // Step 2: Get contract address (from env variable or config)
+      const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || CONTRACT_CONFIG.baseSepolia.contractAddress;
       
-      // Get current gas price
-      const gasPrice = await provider.getGasPrice();
+      // Validate contract address is not a burn address
+      if (contractAddress === "0x000000000000000000000000000000000000dEaD" || 
+          contractAddress === "0x0000000000000000000000000000000000000000") {
+        throw new Error('Invalid contract address. Please configure NEXT_PUBLIC_CONTRACT_ADDRESS environment variable with a valid Reclaim Protocol contract address.');
+      }
+
+      // Step 3: Create contract instance and call verifyProof
+      console.log('Calling contract verifyProof function...');
+      const contract = new ethers.Contract(contractAddress, RECLAIM_CONTRACT_ABI, signer);
       
-      // Create verification fee transaction
-      // User pays 0.001 ETH as verification fee (like paying for a service)
-      console.log('Creating verification fee transaction for proof:', proof);
-      console.log('Verification fee: 0.001 ETH will be sent to burn address (demonstration)');
-      
-      const tx = await signer.sendTransaction({
-        to: verificationServiceAddress,
-        value: ethers.utils.parseEther('0.001'), // User pays verification fee
-        gasLimit: 21000, // Standard ETH transfer gas
-        gasPrice: gasPrice
-        // No data field - this is a fee payment transaction
+      // Estimate gas first
+      let gasEstimate;
+      try {
+        gasEstimate = await contract.estimateGas.verifyProof(transformedProof);
+        console.log('Gas estimate:', gasEstimate.toString());
+      } catch (estimateError: any) {
+        console.warn('Gas estimation failed, using default:', estimateError.message);
+        gasEstimate = ethers.BigNumber.from(300000); // Default gas limit
+      }
+
+      // Call the contract's verifyProof function
+      const tx = await contract.verifyProof(transformedProof, {
+        gasLimit: gasEstimate.mul(120).div(100), // Add 20% buffer to gas estimate
       });
 
       console.log('Verification transaction submitted:', tx.hash);
@@ -304,14 +326,15 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
       // Wait for confirmation
       const receipt = await tx.wait();
 
+      // Extract provider from proof if available
+      let providerName = proof?.claimInfo?.provider || proof?.claimData?.provider || 'unknown';
+      
       const result = {
         success: true,
         transactionHash: tx.hash,
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString(),
-        provider: proof?.claimInfo?.provider || 'unknown',
-        verificationFee: '0.001 ETH',
-        note: 'Verification fee paid to demonstrate real blockchain transaction'
+        provider: providerName
       };
 
       // Store the proof in user's dashboard
@@ -328,12 +351,11 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
               proofHash: tx.hash,
               submitter: userAddress,
               timestamp: Math.floor(Date.now() / 1000),
-              provider: proof?.claimInfo?.provider || 'Onchain Verification',
+              provider: providerName,
               isValid: true,
               transactionHash: tx.hash,
               blockNumber: receipt.blockNumber,
-              gasUsed: receipt.gasUsed.toString(),
-              verificationFee: '0.001 ETH'
+              gasUsed: receipt.gasUsed.toString()
             }
           })
         });

@@ -33,6 +33,7 @@ interface OnchainVerificationProps {
   onSuccess?: (txHash: string, proof?: any) => void;
   onError?: (error: string) => void;
   mode?: 'verify' | 'generate'; // New mode for component behavior
+  providerName?: string; // Optional provider name to use instead of extracting from proof
 }
 
 type VerificationStatus = 'idle' | 'connecting' | 'submitting' | 'confirming' | 'success' | 'error';
@@ -47,7 +48,7 @@ interface OnchainVerificationState {
   gasUsed?: string;
 }
 
-export default function OnchainVerification({ proof, onSuccess, onError, mode = 'verify' }: OnchainVerificationProps) {
+export default function OnchainVerification({ proof, onSuccess, onError, mode = 'verify', providerName: providedProviderName }: OnchainVerificationProps) {
   const [state, setState] = useState<OnchainVerificationState>({
     status: 'idle',
     walletAddress: null,
@@ -312,40 +313,118 @@ export default function OnchainVerification({ proof, onSuccess, onError, mode = 
       console.log('Proof data used for hash:', proofString.substring(0, 200) + '...');
 
       // Step 3: Extract provider name from proof
-      // Try multiple possible locations for provider in the proof structure
-      let providerName = 'unknown';
+      // Log full proof structure for debugging
+      console.log('Full proof structure:', JSON.stringify(proof, null, 2));
       
-      if (proof?.claimInfo?.provider) {
-        providerName = proof.claimInfo.provider;
-      } else if (proof?.claimData?.provider) {
-        providerName = proof.claimData.provider;
-      } else if (proof?.provider) {
-        providerName = proof.provider;
-      } else if (proof?.signedClaim?.claim?.owner) {
-        // Fallback: use a generic name based on proof type
+      // Try multiple possible locations for provider in the proof structure
+      let providerName = providedProviderName || null;
+      
+      // If provider name was provided as prop, use it (highest priority)
+      if (providerName && providerName.trim() && providerName.length >= 2 && !providerName.toLowerCase().startsWith('http')) {
+        console.log('Using provided provider name:', providerName);
+      } else {
+        providerName = null; // Reset if invalid
+      }
+      
+      // Try claimInfo.provider first (Reclaim Protocol format)
+      if (proof?.claimInfo?.provider && typeof proof.claimInfo.provider === 'string') {
+        providerName = proof.claimInfo.provider.trim();
+      }
+      
+      // Try claimData.provider (Alternative format)
+      if ((!providerName || providerName === '') && proof?.claimData?.provider && typeof proof.claimData.provider === 'string') {
+        providerName = proof.claimData.provider.trim();
+      }
+      
+      // Try direct provider field
+      if ((!providerName || providerName === '') && proof?.provider && typeof proof.provider === 'string') {
+        providerName = proof.provider.trim();
+      }
+      
+      // Try to extract from parameters (might contain provider info)
+      if ((!providerName || providerName === '') && proof?.claimInfo?.parameters) {
+        try {
+          const params = JSON.parse(proof.claimInfo.parameters);
+          if (params.provider && typeof params.provider === 'string') {
+            providerName = params.provider.trim();
+          } else if (params.url && typeof params.url === 'string') {
+            // Extract provider from URL if available - but be careful not to use "http"
+            try {
+              const url = new URL(params.url);
+              const hostname = url.hostname.replace('www.', '');
+              const domainParts = hostname.split('.');
+              // Get the main domain name (e.g., "github" from "github.com")
+              if (domainParts.length >= 2 && domainParts[0].length > 2) {
+                providerName = domainParts[0]; // Use the first part before the TLD
+              }
+            } catch (e) {
+              // URL parsing failed, skip - don't use "http" or URL fragments
+              console.warn('Could not extract provider from URL:', params.url);
+            }
+          }
+        } catch (e) {
+          // JSON parse failed, skip
+        }
+      }
+      
+      // Try to extract from context
+      if ((!providerName || providerName === '') && proof?.claimInfo?.context) {
+        try {
+          const context = JSON.parse(proof.claimInfo.context);
+          if (context.provider && typeof context.provider === 'string') {
+            providerName = context.provider.trim();
+          }
+        } catch (e) {
+          // JSON parse failed, skip
+        }
+      }
+      
+      // Final validation and fallback
+      // List of invalid provider names
+      const invalidProviders = ['http', 'https', 'www', 'unknown', ''];
+      const isValidProvider = providerName && 
+                              typeof providerName === 'string' &&
+                              providerName.trim() !== '' && 
+                              providerName.length >= 2 && 
+                              !invalidProviders.includes(providerName.toLowerCase().trim());
+      
+      if (!isValidProvider) {
+        console.warn('Could not extract valid provider name from proof. Using fallback.');
+        console.warn('Proof structure analysis:', {
+          hasClaimInfo: !!proof?.claimInfo,
+          hasClaimData: !!proof?.claimData,
+          claimInfoKeys: proof?.claimInfo ? Object.keys(proof.claimInfo) : [],
+          claimDataKeys: proof?.claimData ? Object.keys(proof.claimData) : [],
+          proofKeys: proof ? Object.keys(proof) : [],
+          attemptedProviderName: providerName
+        });
+        // Use a generic provider name as fallback
         providerName = 'reclaim-proof';
       }
       
-      // Validate provider name is not empty or invalid
-      if (!providerName || providerName.trim() === '' || providerName === 'unknown' || providerName.length < 2) {
-        console.error('Provider name is invalid. Full proof structure:', JSON.stringify(proof, null, 2));
-        throw new Error('Could not extract provider name from proof. Please ensure the proof has a valid provider field.');
+      // Ensure providerName is a string at this point
+      if (!providerName || typeof providerName !== 'string') {
+        providerName = 'reclaim-proof';
       }
       
-      // Additional validation - check if it looks like a URL fragment
-      if (providerName.toLowerCase().startsWith('http')) {
-        console.error('Provider appears to be a URL fragment. Proof structure:', {
-          providerName,
-          hasClaimInfo: !!proof?.claimInfo,
-          hasClaimData: !!proof?.claimData,
-          claimInfoProvider: proof?.claimInfo?.provider,
-          claimDataProvider: proof?.claimData?.provider,
-          proofKeys: proof ? Object.keys(proof) : []
-        });
-        throw new Error(`Invalid provider name detected: "${providerName}". This appears to be a URL fragment, not a provider name. Please check your proof structure.`);
+      // Validate that provider name doesn't look like a URL fragment or protocol
+      const lowerProvider = providerName.toLowerCase().trim();
+      if (lowerProvider.startsWith('http') || lowerProvider === 'www' || lowerProvider.length < 2) {
+        console.warn('Provider name looks invalid:', providerName, '- using fallback');
+        providerName = 'reclaim-proof';
       }
       
-      console.log('Extracted provider:', providerName);
+      // Clean up provider name (remove invalid characters, keep only alphanumeric and hyphens/underscores)
+      providerName = providerName.replace(/[^a-zA-Z0-9_-]/g, '-')
+                                  .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
+                                  .substring(0, 50);
+      
+      // Final check after cleanup - ensure it's still valid
+      if (!providerName || providerName.length < 2) {
+        providerName = 'reclaim-proof';
+      }
+      
+      console.log('Final extracted provider:', providerName);
 
       // Step 4: Create contract instance and call verifyProof
       console.log('Calling simple verification contract verifyProof function...');
